@@ -17,6 +17,14 @@ def generate_launch_description():
         'use_joint_state_publisher_gui'
     )
 
+    # VS Code installed as a Snap injects GTK paths that can load Snap's
+    # libpthread into system ROS executables and cause a GLIBC_PRIVATE error.
+    clean_snap_gui_env = (
+        'env -u GTK_EXE_PREFIX -u GTK_PATH -u GTK_MODULES '
+        '-u GTK_IM_MODULE_FILE -u GIO_MODULE_DIR -u GSETTINGS_SCHEMA_DIR '
+        '-u LOCPATH -u XDG_CONFIG_DIRS -u XDG_DATA_DIRS'
+    )
+
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time', default_value='false',
         description='Utiliser /clock; false pour un affichage autonome'
@@ -49,6 +57,7 @@ def generate_launch_description():
     joint_state_publisher = Node(
         package='joint_state_publisher_gui',
         executable='joint_state_publisher_gui',
+        prefix=clean_snap_gui_env,
         parameters=[{'use_sim_time': use_sim_time}],
         condition=IfCondition(use_joint_state_publisher_gui)
     )
@@ -56,6 +65,7 @@ def generate_launch_description():
     rviz = Node(
         package='rviz2',
         executable='rviz2',
+        prefix=clean_snap_gui_env,
         arguments=['-d', LaunchConfiguration('rvizconfig', default=default_rviz_config)],
         parameters=[{'use_sim_time': use_sim_time}]
     )
