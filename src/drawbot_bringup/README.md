@@ -14,7 +14,7 @@ Arguments de `simulation.launch.py` :
 | `rviz` | `true` | Affichage RViz. |
 | `draw` | `false` | Dessin automatique de démonstration. |
 | `markers` | `true` | Exemple de marqueurs PCB dans RViz. |
-| `xyz_gui` | `true` | Panneau manuel X/Y/Z. |
+| `xyz_gui` | `true` | Panneau manuel X/Y/Z lancé par `gazebo.launch.py`. |
 
 Le dessin automatique est désactivé par défaut, car il utilise les mêmes contrôleurs que le panneau XYZ. Pour l’activer seul, lancer `draw:=true xyz_gui:=false`.
 

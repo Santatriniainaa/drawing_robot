@@ -12,6 +12,7 @@
   <depend>ros_gz_sim</depend>
   <depend>ros_gz_bridge</depend>
   <depend>drawbot_description</depend>
+  <exec_depend>drawbot_control</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>

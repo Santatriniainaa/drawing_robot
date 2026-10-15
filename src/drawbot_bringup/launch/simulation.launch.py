@@ -8,7 +8,6 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     pkg_gazebo = FindPackageShare('drawbot_gazebo')
-    pkg_control = FindPackageShare('drawbot_control')
     pkg_description = FindPackageShare('drawbot_description')
 
     # Arguments
@@ -40,22 +39,15 @@ def generate_launch_description():
     gazebo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([pkg_gazebo, 'launch', 'gazebo.launch.py'])
-        )
+        ),
+        launch_arguments={
+            'xyz_gui': LaunchConfiguration('xyz_gui'),
+        }.items(),
     )
 
-    # 2. Contrôleurs (après Gazebo, délai 2s)
-    control_launch = TimerAction(
-        period=2.0,
-        actions=[
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    PathJoinSubstitution([pkg_control, 'launch', 'control.launch.py'])
-                )
-            )
-        ]
-    )
-
-    # 3. RViz (après 3s pour laisser le robot spawner)
+    # gazebo.launch.py démarre les contrôleurs après l'insertion du robot.
+    # Le joint_state_broadcaster fournit /joint_states à robot_state_publisher.
+    # 2. RViz (après 3s pour laisser le robot spawner)
     rviz_launch = TimerAction(
         period=3.0,
         actions=[
@@ -73,7 +65,7 @@ def generate_launch_description():
         ]
     )
 
-    # 4. Nœud de dessin (après 5s pour laisser les contrôleurs démarrer)
+    # 3. Nœud de dessin (après 5s pour laisser les contrôleurs démarrer)
     draw_node = TimerAction(
         period=5.0,
         actions=[
@@ -88,7 +80,7 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('draw'))
     )
 
-    # 5. Visualisation des marqueurs (après 3s)
+    # 4. Visualisation des marqueurs (après 3s)
     marker_node = TimerAction(
         period=3.0,
         actions=[
@@ -103,30 +95,14 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('markers'))
     )
 
-    xyz_gui_node = TimerAction(
-        period=4.0,
-        actions=[
-            Node(
-                package='drawbot_control',
-                executable='xyz_control_gui',
-                name='drawbot_xyz_control_gui',
-                output='screen',
-                parameters=[{'use_sim_time': True}]
-            )
-        ],
-        condition=IfCondition(LaunchConfiguration('xyz_gui'))
-    )
-
     return LaunchDescription([
         use_rviz_arg,
         use_draw_arg,
         use_markers_arg,
         use_xyz_gui_arg,
         gazebo_launch,
-        control_launch,
         rviz_launch,
         draw_node,
         marker_node,
-        xyz_gui_node,
     ])
     
