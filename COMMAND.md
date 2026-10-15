@@ -36,14 +36,30 @@ Si le fichier existe, ROS est installé dans l’emplacement attendu. Sinon, ins
 
 ```bash
 sudo apt update
-sudo apt install -y python3-rosdep python3-colcon-common-extensions python3-pip python3-tk
+sudo apt install -y python3-rosdep python3-colcon-common-extensions python3-pip python3-venv python3-setuptools python3-empy python3-tk
 ```
 
 - `apt update` met à jour la liste des paquets Ubuntu.
 - `python3-rosdep` résout les dépendances des packages ROS.
 - `python3-colcon-common-extensions` fournit l’outil de compilation du workspace.
 - `python3-pip` est utile pour les outils Python facultatifs.
+- `python3-venv` et `python3-setuptools` servent à l’environnement virtuel et au packaging du package Python.
+- `python3-empy` est requis par certains générateurs Python de ROS 2.
 - `python3-tk` fournit Tkinter, requis par le panneau XYZ.
+
+### 1.3 Créer l’environnement Python `.venv` du projet
+
+Les paquets ROS Python sont fournis par apt/ROS et non par PyPI. Le venv doit donc partager les paquets système. Si `.venv` existe déjà avec `include-system-site-packages = false`, renommez-le avant cette création (par exemple `mv .venv .venv-backup`), car cet environnement isolé ne peut pas importer toutes les dépendances ROS.
+
+```bash
+cd /home/santatra/Documents/drawing_robot
+python3 -m venv --system-site-packages .venv
+source /opt/ros/lyrical/setup.bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+`requirements.txt` ne contient que les paquets PyPI du projet. N’installez pas `rclpy`, `ros_gz_interfaces` ou les autres packages ROS avec pip : ils doivent provenir des paquets apt de ROS 2 Lyrical.
 
 Initialiser rosdep une seule fois par installation Ubuntu :
 
@@ -54,7 +70,7 @@ rosdep update
 
 Si `rosdep init` répond que l’initialisation existe déjà, ne le relancez pas : continuez avec `rosdep update`.
 
-### 1.3 Installer les dépendances des packages
+### 1.4 Installer les dépendances des packages
 
 ```bash
 cd /home/santatra/Documents/drawing_robot
@@ -64,7 +80,7 @@ rosdep install --from-paths src --ignore-src --rosdistro lyrical -r -y --skip-ke
 
 Cette commande examine tous les `package.xml` sous `src/`, installe les dépendances système manquantes, et ne tente pas d’installer les packages locaux du workspace. `--skip-keys ament_python` évite une clé rosdep qui peut être absente du catalogue de certaines installations Lyrical; le système de build Python ROS n’est pas remplacé par cette commande.
 
-### 1.4 Dépendances principales utilisées
+### 1.5 Dépendances principales utilisées
 
 Le projet attend une installation ROS 2 Lyrical compatible avec :
 
