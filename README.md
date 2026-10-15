@@ -38,7 +38,7 @@ Drawbot est un workspace **ROS 2** pour modéliser, simuler et commander un robo
 ## Fonctionnalités
 
 - Description du robot paramétrée en Xacro/URDF et affichage dans RViz.
-- Monde de travail SDF avec table et surface PCB.
+- Monde de travail SDF avec table; PCB intégré comme lien fixe à la description du robot.
 - Contrôle des axes avec `ros2_control` : trajectoires X/Y et commande du stylo Z.
 - Panneau graphique pour envoyer des cibles X/Y/Z et annuler une trajectoire XY.
 - Nœuds de démonstration pour un motif fixe et des marqueurs RViz.
@@ -99,15 +99,15 @@ Pour démarrer uniquement l’environnement Gazebo, utiliser `ros2 launch drawbo
 
 ## Modèle et interfaces de commande
 
-Le modèle définit trois articulations prismatiques : `joint_x`, `joint_y` et `joint_pen`. Les plages du modèle sont :
+Le modèle définit trois articulations prismatiques : `joint_x`, `joint_y` et `joint_pen`. Le PCB (250 × 250 × 1 mm) est fixé au plateau supérieur du robot, tandis que la table reste un support. Les plages du modèle sont :
 
 | Axe       | Articulation  |   Plage configurée |
 | --------- | ------------- | ------------------: |
 | X         | `joint_x`   |   −0,10 à +0,10 m |
 | Y         | `joint_y`   |   −0,10 à +0,10 m |
-| Z (stylo) | `joint_pen` | −0,025 à +0,020 m |
+| Z (stylo) | `joint_pen` | −0,0065 à +0,020 m |
 
-La GUI limite la commande Z à −0,0075…+0,020 m. **Z = 0 relève le stylo** ; −0,0075 m est une estimation géométrique du contact avec la surface, pas une valeur calibrée. Vérifier visuellement le contact dans Gazebo avant toute démonstration et réajuster la valeur si la géométrie change.
+La GUI limite la commande Z à −0,0065…+0,020 m. **Z = 0 relève le stylo** ; avec la pointe sphérique ajoutée à la collision URDF, le contact géométrique calculé est à environ −0,0060 m et l’impression utilise −0,00615 m pour un léger appui simulé. Vérifier le contact visuellement dans Gazebo si la géométrie change.
 
 | Interface ROS                              | Rôle                                                                         |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |

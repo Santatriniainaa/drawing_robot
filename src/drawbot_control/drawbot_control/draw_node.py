@@ -16,9 +16,11 @@ class DrawNode(Node):
         self.cb_group = ReentrantCallbackGroup()
 
         # Positions du stylo (en mètres, relatif au joint)
-        # La face basse du cylindre touche la face PCB à environ -0.0075 m.
+        # Le PCB est fixé sur la base; le portique relevé conserve ces positions.
         self.PEN_UP = 0.0
-        self.PEN_DOWN = -0.0075
+        # Geometry: PCB top is 21 mm above base_link; sphere-tip contact is
+        # about 15 microns below the ideal contact point for stable physics.
+        self.PEN_DOWN = -0.00615
 
         # Client action pour trajectoire XY
         self.xy_client = ActionClient(

@@ -24,7 +24,7 @@ class PCBDrawer(Node):
             "type": "pcb",
             "traces": traces,
             "pads": pads,
-            "pen_down": -0.0075,
+            "pen_down": -0.00615,
             "pen_up": 0.0
         }
         self.send_command(cmd)

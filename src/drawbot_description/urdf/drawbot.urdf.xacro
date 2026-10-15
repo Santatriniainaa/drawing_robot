@@ -5,6 +5,12 @@
   <xacro:property name="base_x" value="0.36"/>
   <xacro:property name="base_y" value="0.36"/>
   <xacro:property name="base_z" value="0.020"/>
+  <xacro:property name="pcb_x" value="0.25"/>
+  <xacro:property name="pcb_y" value="0.25"/>
+  <xacro:property name="pcb_z" value="0.001"/>
+  <!-- Raise the gantry so joint_pen=0 starts 7.5 mm above the PCB. -->
+  <xacro:property name="gantry_raise" value="0.0195"/>
+  <xacro:property name="support_size" value="0.020"/>
 
   <xacro:property name="rail_x_len" value="0.32"/>
   <xacro:property name="rail_x_w"   value="0.020"/>
@@ -23,7 +29,8 @@
   <xacro:property name="x_max" value="0.10"/>
   <xacro:property name="y_min" value="-0.10"/>
   <xacro:property name="y_max" value="0.10"/>
-  <xacro:property name="z_min" value="-0.025"/>
+  <!-- Tip contact is near -6 mm; allow only 0.5 mm extra compression. -->
+  <xacro:property name="z_min" value="-0.0065"/>
   <xacro:property name="z_max" value="0.020"/>
 
   <material name="grey"><color rgba="0.45 0.45 0.47 1"/></material>
@@ -31,6 +38,28 @@
   <material name="cyan"><color rgba="0.15 0.65 0.85 1"/></material>
   <material name="red"><color rgba="0.85 0.18 0.18 1"/></material>
   <material name="black"><color rgba="0.08 0.08 0.08 1"/></material>
+  <material name="pcb_green"><color rgba="0.04 0.32 0.16 1"/></material>
+
+  <xacro:macro name="support_column" params="name x y">
+    <link name="${name}">
+      <visual>
+        <geometry><box size="${support_size} ${support_size} ${gantry_raise}"/></geometry>
+        <material name="grey"/>
+      </visual>
+      <collision>
+        <geometry><box size="${support_size} ${support_size} ${gantry_raise}"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="0.000003" ixy="0" ixz="0" iyy="0.000003" iyz="0" izz="0.000003"/>
+      </inertial>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="${x} ${y} ${base_z + gantry_raise/2}"/>
+    </joint>
+  </xacro:macro>
 
   <!-- ========== BASE (fixe, horizontale) ========== -->
   <link name="base_link">
@@ -48,6 +77,34 @@
       <inertia ixx="0.03" ixy="0" ixz="0" iyy="0.03" iyz="0" izz="0.05"/>
     </inertial>
   </link>
+
+  <!-- PCB fixée au plateau supérieur du robot -->
+  <link name="pcb_link">
+    <visual>
+      <origin xyz="0 0 ${base_z + pcb_z/2}"/>
+      <geometry><box size="${pcb_x} ${pcb_y} ${pcb_z}"/></geometry>
+      <material name="pcb_green"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_z + pcb_z/2}"/>
+      <geometry><box size="${pcb_x} ${pcb_y} ${pcb_z}"/></geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 ${base_z + pcb_z/2}"/>
+      <mass value="0.12"/>
+      <inertia ixx="0.000625" ixy="0" ixz="0" iyy="0.000625" iyz="0" izz="0.00125"/>
+    </inertial>
+  </link>
+  <joint name="pcb_mount_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_link"/>
+  </joint>
+
+  <!-- Colonnes structurelles entre le plateau et les rails relevés -->
+  <xacro:support_column name="support_front_left" x="-0.14" y="0.15"/>
+  <xacro:support_column name="support_front_right" x="0.14" y="0.15"/>
+  <xacro:support_column name="support_back_left" x="-0.14" y="-0.15"/>
+  <xacro:support_column name="support_back_right" x="0.14" y="-0.15"/>
 
   <!-- Rails X fixes (deux barres horizontales selon X, aux bords Y) -->
   <link name="rail_x_pos">
@@ -67,7 +124,7 @@
   <joint name="rail_x_pos_j" type="fixed">
     <parent link="base_link"/>
     <child link="rail_x_pos"/>
-    <origin xyz="0 ${base_y/2 - 0.03} ${base_z + rail_x_h/2}"/>
+    <origin xyz="0 ${base_y/2 - 0.03} ${base_z + rail_x_h/2 + gantry_raise}"/>
   </joint>
 
   <link name="rail_x_neg">
@@ -86,14 +143,14 @@
   <joint name="rail_x_neg_j" type="fixed">
     <parent link="base_link"/>
     <child link="rail_x_neg"/>
-    <origin xyz="0 ${-base_y/2 + 0.03} ${base_z + rail_x_h/2}"/>
+    <origin xyz="0 ${-base_y/2 + 0.03} ${base_z + rail_x_h/2 + gantry_raise}"/>
   </joint>
 
   <!-- ========== JOINT X : poutre Y qui glisse selon X (horizontale) ========== -->
   <joint name="joint_x" type="prismatic">
     <parent link="base_link"/>
     <child link="gantry_y_beam"/>
-    <origin xyz="0 0 ${base_z + rail_x_h + beam_y_h/2}"/>
+    <origin xyz="0 0 ${base_z + rail_x_h + beam_y_h/2 + gantry_raise}"/>
     <axis xyz="1 0 0"/>
     <limit lower="${x_min}" upper="${x_max}" effort="80" velocity="0.4"/>
     <dynamics damping="1.0" friction="0.2"/>
@@ -169,6 +226,9 @@
       <geometry><sphere radius="0.0015"/></geometry>
       <material name="black"/>
     </visual>
+    <collision>
+      <geometry><sphere radius="0.0015"/></geometry>
+    </collision>
   </link>
   <joint name="pen_tip_joint" type="fixed">
     <parent link="pen"/>
@@ -214,6 +274,13 @@
   </gazebo>
 
   <gazebo reference="base_link"><material>Gazebo/Grey</material></gazebo>
+  <gazebo reference="pcb_link">
+    <material>Gazebo/Green</material>
+    <mu1>0.4</mu1>
+    <mu2>0.4</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+  </gazebo>
   <gazebo reference="rail_x_pos"><material>Gazebo/Blue</material></gazebo>
   <gazebo reference="rail_x_neg"><material>Gazebo/Blue</material></gazebo>
   <gazebo reference="gantry_y_beam"><material>Gazebo/SkyBlue</material></gazebo>
@@ -222,6 +289,12 @@
 
   <!-- Friction pour le stylo (simulation contact papier) -->
   <gazebo reference="pen">
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+  </gazebo>
+  <gazebo reference="pen_tip">
     <mu1>0.8</mu1>
     <mu2>0.8</mu2>
     <kp>1000000.0</kp>
