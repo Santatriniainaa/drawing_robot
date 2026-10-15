@@ -14,7 +14,7 @@ class MarkerPublisher(Node):
         self.marker_id = 0
         self.get_logger().info('Marker Publisher prêt')
 
-    def add_line(self, x1, y1, x2, y2, z=0.0015):
+    def add_line(self, x1, y1, x2, y2, z=0.02102):
         """Ajoute une ligne verte (piste PCB)"""
         marker = Marker()
         marker.header.frame_id = "base_link"
@@ -31,12 +31,12 @@ class MarkerPublisher(Node):
         marker.points = [p1, p2]
 
         marker.scale.x = 0.001  # Épaisseur 1mm
-        marker.color = ColorRGBA(r=0.0, g=0.8, b=0.2, a=1.0)  # Vert cuivre
+        marker.color = ColorRGBA(r=0.95, g=0.55, b=0.12, a=1.0)  # Traces cuivre
 
         self.markers.append(marker)
         self.publish_markers()
 
-    def add_circle(self, cx, cy, radius, z=0.0015, segments=32):
+    def add_circle(self, cx, cy, radius, z=0.02102, segments=32):
         """Ajoute un cercle (pad)"""
         prev_x = cx + radius
         prev_y = cy
