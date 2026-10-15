@@ -1,0 +1,231 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="drawbot">
+
+  <!-- Géométrie (mètres) -->
+  <xacro:property name="base_x" value="0.36"/>
+  <xacro:property name="base_y" value="0.36"/>
+  <xacro:property name="base_z" value="0.020"/>
+
+  <xacro:property name="rail_x_len" value="0.32"/>
+  <xacro:property name="rail_x_w"   value="0.020"/>
+  <xacro:property name="rail_x_h"   value="0.020"/>
+
+  <xacro:property name="beam_y_len" value="0.32"/>
+  <xacro:property name="beam_y_w"   value="0.024"/>
+  <xacro:property name="beam_y_h"   value="0.024"/>
+
+  <xacro:property name="carriage_size" value="0.040"/>
+  <xacro:property name="pen_r" value="0.003"/>
+  <xacro:property name="pen_l" value="0.055"/>
+
+  <!-- Course -->
+  <xacro:property name="x_min" value="-0.10"/>
+  <xacro:property name="x_max" value="0.10"/>
+  <xacro:property name="y_min" value="-0.10"/>
+  <xacro:property name="y_max" value="0.10"/>
+  <xacro:property name="z_min" value="-0.025"/>
+  <xacro:property name="z_max" value="0.020"/>
+
+  <material name="grey"><color rgba="0.45 0.45 0.47 1"/></material>
+  <material name="blue"><color rgba="0.12 0.35 0.85 1"/></material>
+  <material name="cyan"><color rgba="0.15 0.65 0.85 1"/></material>
+  <material name="red"><color rgba="0.85 0.18 0.18 1"/></material>
+  <material name="black"><color rgba="0.08 0.08 0.08 1"/></material>
+
+  <!-- ========== BASE (fixe, horizontale) ========== -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_z/2}"/>
+      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_z/2}"/>
+      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="3.0"/>
+      <inertia ixx="0.03" ixy="0" ixz="0" iyy="0.03" iyz="0" izz="0.05"/>
+    </inertial>
+  </link>
+
+  <!-- Rails X fixes (deux barres horizontales selon X, aux bords Y) -->
+  <link name="rail_x_pos">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry><box size="${rail_x_len} ${rail_x_w} ${rail_x_h}"/></geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry><box size="${rail_x_len} ${rail_x_w} ${rail_x_h}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <joint name="rail_x_pos_j" type="fixed">
+    <parent link="base_link"/>
+    <child link="rail_x_pos"/>
+    <origin xyz="0 ${base_y/2 - 0.03} ${base_z + rail_x_h/2}"/>
+  </joint>
+
+  <link name="rail_x_neg">
+    <visual>
+      <geometry><box size="${rail_x_len} ${rail_x_w} ${rail_x_h}"/></geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry><box size="${rail_x_len} ${rail_x_w} ${rail_x_h}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+  <joint name="rail_x_neg_j" type="fixed">
+    <parent link="base_link"/>
+    <child link="rail_x_neg"/>
+    <origin xyz="0 ${-base_y/2 + 0.03} ${base_z + rail_x_h/2}"/>
+  </joint>
+
+  <!-- ========== JOINT X : poutre Y qui glisse selon X (horizontale) ========== -->
+  <joint name="joint_x" type="prismatic">
+    <parent link="base_link"/>
+    <child link="gantry_y_beam"/>
+    <origin xyz="0 0 ${base_z + rail_x_h + beam_y_h/2}"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="${x_min}" upper="${x_max}" effort="80" velocity="0.4"/>
+    <dynamics damping="1.0" friction="0.2"/>
+  </joint>
+
+  <!-- Poutre du portique : longue selon Y, horizontale -->
+  <link name="gantry_y_beam">
+    <visual>
+      <geometry><box size="${beam_y_w} ${beam_y_len} ${beam_y_h}"/></geometry>
+      <material name="cyan"/>
+    </visual>
+    <collision>
+      <geometry><box size="${beam_y_w} ${beam_y_len} ${beam_y_h}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.6"/>
+      <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.005"/>
+    </inertial>
+  </link>
+
+  <!-- ========== JOINT Y : chariot qui glisse sur la poutre selon Y (horizontal) ========== -->
+  <joint name="joint_y" type="prismatic">
+    <parent link="gantry_y_beam"/>
+    <child link="head"/>
+    <origin xyz="0 0 ${beam_y_h/2 + carriage_size/2}"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="${y_min}" upper="${y_max}" effort="80" velocity="0.4"/>
+    <dynamics damping="1.0" friction="0.2"/>
+  </joint>
+
+  <link name="head">
+    <visual>
+      <geometry><box size="${carriage_size} ${carriage_size} ${carriage_size}"/></geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <geometry><box size="${carriage_size} ${carriage_size} ${carriage_size}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.25"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <!-- ========== JOINT Z : stylo vertical ========== -->
+  <joint name="joint_pen" type="prismatic">
+    <parent link="head"/>
+    <child link="pen"/>
+    <origin xyz="0 0 ${-carriage_size/2}"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${z_min}" upper="${z_max}" effort="15" velocity="0.15"/>
+    <dynamics damping="0.5" friction="0.05"/>
+  </joint>
+
+  <link name="pen">
+    <visual>
+      <origin xyz="0 0 ${-pen_l/2}"/>
+      <geometry><cylinder radius="${pen_r}" length="${pen_l}"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${-pen_l/2}"/>
+      <geometry><cylinder radius="${pen_r}" length="${pen_l}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.04"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <link name="pen_tip">
+    <visual>
+      <geometry><sphere radius="0.0015"/></geometry>
+      <material name="black"/>
+    </visual>
+  </link>
+  <joint name="pen_tip_joint" type="fixed">
+    <parent link="pen"/>
+    <child link="pen_tip"/>
+    <origin xyz="0 0 ${-pen_l}"/>
+  </joint>
+
+  <!-- ros2_control (Gazebo Jetty) -->
+  <ros2_control name="GazeboSimSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="joint_x">
+      <command_interface name="position">
+        <param name="min">${x_min}</param>
+        <param name="max">${x_max}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="joint_y">
+      <command_interface name="position">
+        <param name="min">${y_min}</param>
+        <param name="max">${y_max}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="joint_pen">
+      <command_interface name="position">
+        <param name="min">${z_min}</param>
+        <param name="max">${z_max}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find drawbot_control)/config/drawbot_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <gazebo reference="base_link"><material>Gazebo/Grey</material></gazebo>
+  <gazebo reference="rail_x_pos"><material>Gazebo/Blue</material></gazebo>
+  <gazebo reference="rail_x_neg"><material>Gazebo/Blue</material></gazebo>
+  <gazebo reference="gantry_y_beam"><material>Gazebo/SkyBlue</material></gazebo>
+  <gazebo reference="head"><material>Gazebo/Red</material></gazebo>
+  <gazebo reference="pen"><material>Gazebo/Black</material></gazebo>
+
+  <!-- Friction pour le stylo (simulation contact papier) -->
+  <gazebo reference="pen">
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+  </gazebo>
+
+</robot>
