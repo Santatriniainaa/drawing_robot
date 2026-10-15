@@ -1,0 +1,23 @@
+# ROS 2 / colcon generated workspace artifacts
+/build/
+/install/
+/log/
+
+# Python generated files and package metadata
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Local Python environments
+.venv/
+venv/
+ENV/
+
+# Editor / operating system files
+.vscode/
+.DS_Store
