@@ -13,9 +13,7 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     publish_robot_description = LaunchConfiguration('publish_robot_description')
-    use_joint_state_publisher_gui = LaunchConfiguration(
-        'use_joint_state_publisher_gui'
-    )
+    use_joint_state_publisher_gui = LaunchConfiguration('use_joint_state_publisher_gui')
 
     # VS Code installed as a Snap injects GTK paths that can load Snap's
     # libpthread into system ROS executables and cause a GLIBC_PRIVATE error.
@@ -26,15 +24,18 @@ def generate_launch_description():
     )
 
     use_sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time', default_value='false',
+        'use_sim_time', 
+        default_value='false',
         description='Utiliser /clock; false pour un affichage autonome'
     )
     publish_robot_description_arg = DeclareLaunchArgument(
-        'publish_robot_description', default_value='true',
+        'publish_robot_description', 
+        default_value='true',
         description='Lancer robot_state_publisher'
     )
     use_joint_state_publisher_gui_arg = DeclareLaunchArgument(
-        'use_joint_state_publisher_gui', default_value='true',
+        'use_joint_state_publisher_gui', 
+        default_value='true',
         description='Lancer joint_state_publisher_gui'
     )
 
