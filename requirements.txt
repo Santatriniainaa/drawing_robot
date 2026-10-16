@@ -1,4 +1,1 @@
-# Python packaging helper for the drawbot_control ament_python package.
-# ROS 2 Python modules, Gazebo bindings, and Tkinter are provided by apt/ROS;
-# do not install rclpy or ROS message packages from PyPI into this environment.
 setuptools>=61
