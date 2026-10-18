@@ -46,7 +46,7 @@ Les ressources suivent la disposition ROS 2 conventionnelle : `launch/`, `urdf/`
 - Python 3.14 et `python3-tk` pour la fenêtre XYZ.
 - `python3-venv` et `python3-pip` si vous utilisez l’environnement virtuel optionnel décrit ci-dessous.
 
-### Environnement virtuel Python optionnel
+## Environnement virtuel Python optionnel
 
 Le fichier [requirements.txt](requirements.txt) contient les dépendances **PyPI seulement** nécessaires au packaging Python du projet. Les modules ROS (`rclpy`, messages, launch), Gazebo et Tkinter viennent des paquets apt/ROS ci-dessus; ne tentez pas de les installer avec `pip`.
 

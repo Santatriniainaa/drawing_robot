@@ -150,12 +150,12 @@ Le panneau XYZ ouvre **une fenêtre séparée** de Gazebo. Il commande les axes 
 
 ### Options du lancement complet
 
-| Argument | Valeur par défaut | Fonction |
-|---|---:|---|
-| `rviz` | `true` | Ouvre RViz avec le modèle et les TF simulés. |
-| `markers` | `true` | Affiche l’exemple de marqueurs dans RViz. |
-| `xyz_gui` | `true` | Ouvre la GUI avec boutons **Envoyer XYZ**, **Print PCB**, etc. |
-| `draw` | `false` | Lance le motif automatique `draw_node` au lieu d’une utilisation manuelle. |
+| Argument    | Valeur par défaut | Fonction                                                                      |
+| ----------- | -----------------: | ----------------------------------------------------------------------------- |
+| `rviz`    |           `true` | Ouvre RViz avec le modèle et les TF simulés.                                |
+| `markers` |           `true` | Affiche l’exemple de marqueurs dans RViz.                                    |
+| `xyz_gui` |           `true` | Ouvre la GUI avec boutons **Envoyer XYZ**, **Print PCB**, etc.    |
+| `draw`    |          `false` | Lance le motif automatique `draw_node` au lieu d’une utilisation manuelle. |
 
 Exemples :
 
@@ -240,6 +240,22 @@ ros2 control list_controllers
 ```
 
 Les trois contrôleurs attendus sont `joint_state_broadcaster`, `xy_controller` et `pen_controller`; ils doivent être en état `active`.
+
+Pour afficher ces états dans un tableau coloré de type dashboard, utiliser le script du dépôt :
+
+```bash
+./scripts/affichage.sh
+```
+
+Le script source automatiquement ROS 2 Lyrical et `install/setup.bash`; lancez-le dans un terminal pendant que Gazebo fonctionne. Il retourne une erreur explicite si le workspace n’est pas compilé ou si `/controller_manager` n’est pas joignable. Utiliser `NO_COLOR=1 ./scripts/affichage.sh` pour désactiver les couleurs.
+
+Pour afficher en continu les positions, vitesses et efforts rapportés par `/joint_states` dans un tableau :
+
+```bash
+./scripts/joint_states.sh
+```
+
+Dans un terminal interactif, le tableau est redessiné en place à chaque message (il ne doit plus s’ajouter en bas du terminal). Il indique le temps simulé et affiche `n/a` quand le contrôleur ne fournit pas d’effort mesuré. `NO_COLOR=1` désactive seulement les couleurs; l’actualisation reste active. Gazebo et `joint_state_broadcaster` doivent être actifs. Arrêtez l’observation avec Ctrl+C; cela ne ferme pas Gazebo.
 
 ### Vérifier l’état et les topics
 
@@ -396,3 +412,12 @@ ros2 control list_controllers
 ```
 
 Ces terminaux supplémentaires ne démarrent pas une deuxième simulation.
+
+### Terminal 4 — tableau des mesures d’articulations facultatif
+
+```bash
+cd /home/santatra/Documents/drawing_robot
+./scripts/joint_states.sh
+```
+
+Le script charge lui-même ROS et le workspace, puis affiche le retour de position de `joint_x`, `joint_y` et `joint_pen`.
