@@ -24,7 +24,6 @@ setup(
         'console_scripts': [
             'draw_node = drawbot_control.draw_node:main',
             'marker_publisher = drawbot_control.marker_publisher:main',
-            'pcb_generator = drawbot_control.pcb_generator:main',
             'xyz_control_gui = drawbot_control.xyz_control_gui:main',
         ],
     },

@@ -39,6 +39,3 @@ colcon test-result --verbose
 
 Les tests actuels sont surtout des linters/type-checks; le test copyright est désactivé et aucun test d’intégration n’est présent.
 
-## Limite fonctionnelle
-
-`pcb_generator` publie `/draw_commands`, mais aucun abonné ne traduit actuellement ces JSON en trajectoires. `draw_node` exécute son propre motif fixe.
