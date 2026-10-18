@@ -70,9 +70,9 @@ source "/opt/ros/${ROS_DISTRO}/setup.bash"
 rosdep install --from-paths src --ignore-src --rosdistro "${ROS_DISTRO}" --skip-keys ament_python -r -y
 ```
 
-## Compiler
+# Compiler
 
-# Drawbot — robot cartésien de dessin
+## Drawbot — robot cartésien de dessin
 
 Drawbot est un workspace **ROS 2** pour modéliser, simuler et commander un robot cartésien destiné à des démonstrations de tracé sur PCB. Le portique se déplace sur les axes **X/Y** et utilise un stylo commandé sur l’axe **Z**. La simulation repose sur Gazebo Sim et `ros2_control`.
 
@@ -140,6 +140,18 @@ ros2 launch drawbot_bringup simulation.launch.py draw:=true xyz_gui:=false
 
 Pour démarrer uniquement l’environnement Gazebo, utiliser `ros2 launch drawbot_gazebo gazebo.launch.py`. Pour afficher le robot seul dans RViz, utiliser `ros2 launch drawbot_description display.launch.py`.
 
+Pendant que Gazebo fonctionne, les scripts `./scripts/affichage.sh` et `./scripts/joint_states.sh` affichent respectivement l’état des contrôleurs et les mesures X/Y/Z en tableaux actualisés au même endroit dans des terminaux séparés. Voir [COMMAND.md](COMMAND.md) pour le détail.
+
+### Tableau d’état des contrôleurs
+
+Pendant que Gazebo tourne, afficher l’état de `joint_state_broadcaster`, `xy_controller` et `pen_controller` dans un tableau terminal coloré :
+
+```bash
+./scripts/affichage.sh
+```
+
+Le script charge ROS 2 Lyrical et le workspace, puis formate la sortie de `ros2 control list_controllers`. Vert signifie `active`; rouge ou jaune signale un état différent. Gazebo et `/controller_manager` doivent déjà être démarrés.
+
 ## Modèle et interfaces de commande
 
 Le modèle définit trois articulations prismatiques : `joint_x`, `joint_y` et `joint_pen`. Le PCB (250 × 250 × 1 mm) est fixé au plateau supérieur du robot, tandis que la table reste un support. Les plages du modèle sont :
@@ -164,7 +176,7 @@ La GUI limite la commande Z à −0,0065…+0,020 m. **Z = 0 relève le stylo** 
 
 - `draw_node` exécute un motif PCB fixe via les contrôleurs. Il partage ces contrôleurs avec la GUI : utiliser l’un ou l’autre, pas les deux en même temps.
 - `pcb_generator` publie des exemples JSON sur `/draw_commands`, mais aucun nœud ne convertit actuellement ces messages en trajectoires ; ce générateur ne déclenche donc pas le dessin.
-- Les marqueurs RViz illustrent des tracés, mais ne représentent pas une trace réellement déposée sur la surface PCB. Aucune visualisation persistante du dessin effectué n’est implémentée.
+- Le nœud d’exemple publie des marqueurs dans RViz; séparément, la GUI ajoute des segments orange persistants dans Gazebo en temps réel lorsque la pointe mesurée touche et parcourt la plaque verte. Il s’agit d’une visualisation sans collision, pas d’un dépôt d’encre physique.
 - Le contact du stylo et le comportement mécanique restent à valider dans la simulation. Ce dépôt ne fournit pas de pilote ou de configuration de sécurité pour du matériel réel.
 - Les tests automatisés ne couvrent pas encore les trajectoires complètes ni l’intégration Gazebo/contrôleurs.
 
