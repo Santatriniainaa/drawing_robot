@@ -54,7 +54,7 @@ Les paquets `ros-lyrical-*` sont distribués par les dépôts ROS 2 pour Ubuntu 
 | ------------------------------------------------------- | ------------------------------------------- |
 | [drawbot_description](src/drawbot_description/README.md) | Xacro/URDF, RViz et affichage autonome.     |
 | [drawbot_gazebo](src/drawbot_gazebo/README.md)           | Monde SDF, Gazebo Sim et spawn du robot.    |
-| [drawbot_control](src/drawbot_control/README.md)         | ros2_control, panneau XYZ et nœuds Python. |
+| [drawbot_control](src/drawbot_control/README.md)         | ros2_control, panneau XYZ et modules Python. |
 | [drawbot_bringup](src/drawbot_bringup/README.md)         | Lancement intégré.                        |
 
 Les ressources suivent la disposition ROS 2 conventionnelle : `launch/`, `urdf/`, `rviz/`, `worlds/`, `config/` et le module `drawbot_control/`. Les dossiers `build/`, `install/` et `log/` sont générés par colcon.
@@ -73,14 +73,14 @@ Le fichier [requirements.txt](requirements.txt) contient les dépendances **PyPI
 Créer un venv qui voit les modules Python livrés par ROS et Ubuntu (nécessaire notamment pour `empy`, utilisé par les interfaces ROS), puis installer les exigences Python du dépôt :
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 python3 -m venv --system-site-packages .venv
 source /opt/ros/lyrical/setup.bash
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Le venv actuellement présent dans ce workspace a été créé avec `include-system-site-packages = false`; il ne peut donc pas importer correctement toutes les dépendances Python ROS, même après avoir sourcé ROS. S’il est déjà présent, sauvegardez-le ou renommez-le avant de recréer `.venv` avec `--system-site-packages`. Ce venv reste optionnel : `colcon build` et les commandes système fonctionnent également avec l’environnement Python Ubuntu utilisé par ROS.
+Si un venv existant a été créé avec `include-system-site-packages = false`, il ne peut pas importer toutes les dépendances Python ROS, même après avoir sourcé ROS. Renommez-le avant de recréer `.venv` avec `--system-site-packages`. Ce venv reste optionnel : `colcon build` et les commandes système fonctionnent également avec l’environnement Python Ubuntu utilisé par ROS.
 
 Si rosdep ne connaît pas la clé `ament_python` sur cette installation, ignorer cette seule clé :
 
@@ -89,8 +89,6 @@ export ROS_DISTRO=lyrical
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
 rosdep install --from-paths src --ignore-src --rosdistro "${ROS_DISTRO}" --skip-keys ament_python -r -y
 ```
-
-# Compiler
 
 ## Drawbot — robot cartésien de dessin
 
@@ -103,8 +101,10 @@ Drawbot est un workspace **ROS 2** pour modéliser, simuler et commander un robo
 - Description du robot paramétrée en Xacro/URDF et affichage dans RViz.
 - Monde de travail SDF avec table; PCB intégré comme lien fixe à la description du robot.
 - Contrôle des axes avec `ros2_control` : trajectoires X/Y et commande du stylo Z.
-- Panneau graphique pour envoyer des cibles X/Y/Z et annuler une trajectoire XY.
-- Nœuds de démonstration pour un motif fixe et des marqueurs RViz.
+- Panneau graphique pour envoyer des cibles X/Y/Z et dessiner **SALAMA** et **TONGASOA** alignés sur l’axe Y, dans le sens −Y.
+- Géométrie mécanique mutualisée entre la description Xacro et les modules Python.
+- Traces Gazebo orange regroupées par lots et conservées jusqu’à l’arrêt du monde.
+- Démonstrations de tracés et marqueurs PCB dans RViz.
 
 ## Architecture du workspace
 
@@ -112,8 +112,10 @@ Drawbot est un workspace **ROS 2** pour modéliser, simuler et commander un robo
 | ----------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `drawbot_description` | Modèle Xacro/URDF, configuration RViz et affichage autonome.                | [README du package](src/drawbot_description/README.md) |
 | `drawbot_gazebo`      | Monde SDF, démarrage de Gazebo, création du robot et bridge de l’horloge. | [README du package](src/drawbot_gazebo/README.md)      |
-| `drawbot_control`     | Configuration `ros2_control`, GUI XYZ et nœuds de démonstration.         | [README du package](src/drawbot_control/README.md)     |
+| `drawbot_control`     | Configuration `ros2_control`, panneau XYZ et modules de démonstration.   | [README du package](src/drawbot_control/README.md)     |
 | `drawbot_bringup`     | Lancements intégrés de la simulation et de l’affichage seul.              | [README du package](src/drawbot_bringup/README.md)     |
+
+Les modules Python de contrôle portent des noms descriptifs : `pcb_drawing_demo.py`, `pcb_marker_publisher.py`, `xyz_control_node.py`, `xyz_control_view.py`, `drawing_paths.py`, `robot_geometry.py`, `trace_visualization.py` et `controller_startup.py`. Les commandes ROS (`draw_node`, `marker_publisher`, `xyz_control_gui`) restent inchangées.
 
 ## Compilation
 
@@ -182,7 +184,7 @@ Le modèle définit trois articulations prismatiques : `joint_x`, `joint_y` et `
 | Y         | `joint_y`   |   −0,10 à +0,10 m |
 | Z (stylo) | `joint_pen` | −0,0065 à +0,020 m |
 
-La GUI limite la commande Z à −0,0065…+0,020 m. **Z = 0 relève le stylo** ; avec la pointe sphérique ajoutée à la collision URDF, le contact géométrique calculé est à environ −0,0060 m et l’impression utilise −0,00615 m pour un léger appui simulé. Vérifier le contact visuellement dans Gazebo si la géométrie change.
+La GUI limite la commande Z à −0,0065…+0,020 m. **Z = 0 relève le stylo** ; avec la pointe sphérique ajoutée à la collision URDF, le contact géométrique calculé est à environ −0,0060 m et l’impression utilise −0,00615 m pour un léger appui simulé. Ces valeurs sont désormais dérivées de la configuration géométrique commune; vérifier le contact visuellement dans Gazebo si le modèle change.
 
 | Interface ROS                              | Rôle                                                                         |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -190,15 +192,13 @@ La GUI limite la commande Z à −0,0065…+0,020 m. **Z = 0 relève le stylo** 
 | `/xy_controller/follow_joint_trajectory` | Action de trajectoire des axes X et Y.                                        |
 | `/pen_controller/commands`               | Commandes de position du stylo, de type `std_msgs/Float64MultiArray`.       |
 | `/draw_markers`                          | Marqueurs d’exemple de type `visualization_msgs/MarkerArray` pour RViz.    |
-| `/draw_commands`                         | Exemple de commandes de dessin encodées en JSON dans un `std_msgs/String`. |
 
 ## Démonstrations et limites connues
 
-- `draw_node` exécute un motif PCB fixe via les contrôleurs. Il partage ces contrôleurs avec la GUI : utiliser l’un ou l’autre, pas les deux en même temps.
-- `pcb_generator` publie des exemples JSON sur `/draw_commands`, mais aucun nœud ne convertit actuellement ces messages en trajectoires ; ce générateur ne déclenche donc pas le dessin.
-- Le nœud d’exemple publie des marqueurs dans RViz; séparément, la GUI ajoute des segments orange persistants dans Gazebo en temps réel lorsque la pointe mesurée touche et parcourt la plaque verte. Il s’agit d’une visualisation sans collision, pas d’un dépôt d’encre physique.
+- `draw_node` (module `pcb_drawing_demo.py`) exécute un motif PCB fixe via les contrôleurs. Il partage ces contrôleurs avec la GUI : utiliser l’un ou l’autre, pas les deux en même temps.
+- `pcb_marker_publisher.py` publie des marqueurs d’exemple dans RViz. Dans Gazebo, le bouton **Print** écrit **SALAMA** puis **TONGASOA** sur le PCB. La GUI affiche un point orange dès le premier contact, puis trace chaque lettre avec des segments orange lumineux regroupés par lots de 128. Les traces restent visibles après l’impression et la fermeture de la GUI; elles disparaissent au redémarrage ou à l’arrêt du monde Gazebo. Pour éviter le scintillement, ces pistes de visualisation sont volontairement agrandies (3 mm de large, 0,6 mm de haut) et légèrement surélevées; elles ne représentent pas les dimensions réelles du cuivre. Il s’agit d’une visualisation sans collision, pas d’un dépôt d’encre physique.
 - Le contact du stylo et le comportement mécanique restent à valider dans la simulation. Ce dépôt ne fournit pas de pilote ou de configuration de sécurité pour du matériel réel.
-- Les tests automatisés ne couvrent pas encore les trajectoires complètes ni l’intégration Gazebo/contrôleurs.
+- Quatorze tests unitaires couvrent les commandes, les lettres vectorielles, les trajectoires, la géométrie, les traces et le démarrage après spawn. L’intégration complète Gazebo/contrôleurs reste à tester.
 
 ## Tests
 

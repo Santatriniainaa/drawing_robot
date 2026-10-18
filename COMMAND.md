@@ -1,6 +1,6 @@
-# Drawbot — Guide complet des commandes
+# Drawbot — Guide d’installation, d’utilisation et de tests
 
-Ce document regroupe les commandes d’installation, de compilation, de lancement, de commande du robot, de dessin et de diagnostic du workspace ROS 2 **Drawbot** sous Ubuntu. Les chemins et commandes ci-dessous correspondent à ce dépôt et à ROS 2 Lyrical / Gazebo Sim 10.
+Ce document regroupe les commandes d’installation, de compilation, de lancement, de commande du robot, de dessin, de tests et de diagnostic du workspace ROS 2 **Drawbot**. Il cible ROS 2 Lyrical et Gazebo Sim 10 sous Ubuntu; adaptez le chemin du workspace à votre installation.
 
 > **Important — terminal Snap/VS Code :** RViz, Gazebo ou Tk peuvent hériter de chemins GTK de VS Code Snap et charger une bibliothèque incompatible. Pour toutes les commandes ci-dessous, démarrez avec un environnement ROS propre, tel que décrit à l’étape 0. Ne lancez qu’une seule simulation Gazebo à la fois.
 
@@ -9,7 +9,7 @@ Ce document regroupe les commandes d’installation, de compilation, de lancemen
 Dans chaque nouveau terminal utilisé pour ROS, entrer à la racine du workspace :
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 unset LD_LIBRARY_PATH LD_PRELOAD
 source /opt/ros/lyrical/setup.bash
 source install/setup.bash
@@ -52,7 +52,7 @@ sudo apt install -y python3-rosdep python3-colcon-common-extensions python3-pip 
 Les paquets ROS Python sont fournis par apt/ROS et non par PyPI. Le venv doit donc partager les paquets système. Si `.venv` existe déjà avec `include-system-site-packages = false`, renommez-le avant cette création (par exemple `mv .venv .venv-backup`), car cet environnement isolé ne peut pas importer toutes les dépendances ROS.
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 python3 -m venv --system-site-packages .venv
 source /opt/ros/lyrical/setup.bash
 source .venv/bin/activate
@@ -73,7 +73,7 @@ Si `rosdep init` répond que l’initialisation existe déjà, ne le relancez pa
 ### 1.4 Installer les dépendances des packages
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 source /opt/ros/lyrical/setup.bash
 rosdep install --from-paths src --ignore-src --rosdistro lyrical -r -y --skip-keys ament_python
 ```
@@ -94,7 +94,7 @@ Le projet attend une installation ROS 2 Lyrical compatible avec :
 ### Compilation complète du projet
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 source /opt/ros/lyrical/setup.bash
 colcon build --symlink-install --packages-up-to drawbot_bringup
 source install/setup.bash
@@ -150,12 +150,12 @@ Le panneau XYZ ouvre **une fenêtre séparée** de Gazebo. Il commande les axes 
 
 ### Options du lancement complet
 
-| Argument    | Valeur par défaut | Fonction                                                                      |
-| ----------- | -----------------: | ----------------------------------------------------------------------------- |
-| `rviz`    |           `true` | Ouvre RViz avec le modèle et les TF simulés.                                |
-| `markers` |           `true` | Affiche l’exemple de marqueurs dans RViz.                                    |
-| `xyz_gui` |           `true` | Ouvre la GUI avec boutons **Envoyer XYZ**, **Print PCB**, etc.    |
-| `draw`    |          `false` | Lance le motif automatique `draw_node` au lieu d’une utilisation manuelle. |
+| Argument    | Valeur par défaut | Fonction                                                                     |
+| ----------- | -----------------: | ---------------------------------------------------------------------------- |
+| `rviz`    |           `true` | Ouvre RViz avec le modèle et les TF simulés.                               |
+| `markers` |           `true` | Affiche l’exemple de marqueurs dans RViz.                                   |
+| `xyz_gui` |           `true` | Ouvre la GUI avec boutons **Envoyer XYZ**, **Print**, etc.   |
+| `draw`    |          `false` | Lance la démonstration PCB automatique au lieu d’une utilisation manuelle. |
 
 Exemples :
 
@@ -195,12 +195,14 @@ Avec la simulation en cours :
 - **Envoyer XYZ** : envoie les valeurs des curseurs au robot.
 - **Centre (stylo levé)** : recentre X/Y avec le stylo relevé.
 - **Aléatoire** : teste une position dans la zone configurée.
-- **Print PCB** : dessine trois pistes de démonstration puis quatre ancres circulaires de repérage de 5 mm, aux positions ±85 mm. Dès que la pointe mesurée touche la plaque verte, les segments orange apparaissent progressivement dans le monde Gazebo pendant le déplacement.
+- **Print** : écrit **SALAMA** puis **TONGASOA** sur deux lignes centrées du PCB vert avec des traits vectoriels. Le stylo se relève entre les traits, descend au contact pour écrire et se relève à la fin. La trace orange apparaît dès le contact et suit le stylo dans Gazebo.
 - **Annuler impression** / **Annuler XY** : annule la trajectoire en cours et demande le relevage du stylo.
 
-La carte fait 250 × 250 × 1 mm. Les coordonnées des pistes et ancres sont exprimées en mètres relativement au centre du PCB. La course X/Y configurée est de −0,10 à +0,10 m; les positions d’ancrage à ±0,085 m restent à l’intérieur de cette zone.
+La carte fait 250 × 250 × 1 mm. Les coordonnées des lettres sont exprimées en mètres relativement au centre du PCB et restent dans la course X/Y configurée de −0,10 à +0,10 m.
 
-Le stylo est relevé à Z = 0. Le contact géométrique calculé est environ −0,0060 m; le bouton **Print PCB** commande actuellement −0,00615 m pour un très léger appui de simulation. Les visuels orange sont créés en temps réel au contact et persistent jusqu’à la fermeture du monde, sans collision. Ils simulent des pistes/repères; Gazebo ne dépose pas d’encre réelle.
+Le stylo est relevé à Z = 0. Le contact géométrique calculé est environ −0,0060 m; le bouton **Print** commande −0,00615 m pour un léger appui simulé. Les traces orange visibles dans Gazebo sont des visuels non-collisionnels placés au-dessus du PCB. Elles sont volontairement agrandies à 3 mm de large et 0,6 mm de haut et surélevées de 0,2 mm pour éviter le scintillement; ce ne sont pas des dimensions de fabrication du cuivre. Les segments sont groupés par lots de 128 et restent dans le monde après l’impression jusqu’à son arrêt ou redémarrage. Gazebo ne dépose pas d’encre réelle.
+
+Le monde Gazebo reste au facteur temps réel 1.0. L’écriture utilise les vitesses standard du robot : 0,025 m/s pendant le tracé, 0,10 m/s stylo levé et 0,05 m/s sur l’axe Z. Les durées minimales sont de 0,5 s par segment écrit et 1 s pour rejoindre le début d’un trait afin de privilégier un suivi propre des lettres.
 
 > Les tests précédents montrent que le contrôleur peut signaler brièvement une limitation de mouvement XY lorsque sa trajectoire exige une vitesse supérieure à la limite. Le contrôleur limite la commande; vérifiez le suivi visuellement avant de modifier la vitesse.
 
@@ -289,7 +291,7 @@ ros2 topic info /joint_states
 ros2 topic info /pen_controller/commands
 ```
 
-Le service `/world/drawing_world/create` est le service Gazebo utilisé par la GUI pour ajouter les segments visualisés.
+Le service `/world/drawing_world/create` est utilisé par la GUI pour ajouter les lots de traces au monde Gazebo.
 
 ## 8. Nœuds et commandes autonomes
 
@@ -303,7 +305,7 @@ ros2 run drawbot_control xyz_control_gui
 
 Cette GUI exige les contrôleurs, `/joint_states`, `/clock` et `/world/drawing_world/create` de la simulation active.
 
-### Lancer le motif automatique `draw_node`
+### Lancer la démonstration automatique de dessin
 
 Démarrer Gazebo seul sans GUI XYZ, puis dans un autre terminal préparé :
 
@@ -311,15 +313,7 @@ Démarrer Gazebo seul sans GUI XYZ, puis dans un autre terminal préparé :
 ros2 run drawbot_control draw_node
 ```
 
-`draw_node` joue son motif fixe. Ne l’exécutez pas simultanément avec la GUI XYZ ni avec `draw:=true`.
-
-### Publier l’exemple JSON PCB
-
-```bash
-ros2 run drawbot_control pcb_generator
-```
-
-Cela publie un exemple sur `/draw_commands`. **Aucun abonné actuel ne convertit `/draw_commands` en mouvement robot** : cette commande ne démarre donc pas l’impression.
+L’exécutable ROS `draw_node` (module Python `pcb_drawing_demo.py`) joue un motif fixe. Ne l’exécutez pas simultanément avec la GUI XYZ ni avec `draw:=true`.
 
 ### Démarrer les contrôleurs seuls
 
@@ -331,7 +325,7 @@ ros2 launch drawbot_control control.launch.py
 
 ## 9. Tests et diagnostics de compilation
 
-### Lint et tests du package de contrôle
+### Tests unitaires du package de contrôle
 
 ```bash
 source /opt/ros/lyrical/setup.bash
@@ -339,12 +333,12 @@ colcon test --packages-select drawbot_control
 colcon test-result --verbose
 ```
 
-Les tests automatiques actuels sont principalement des linters/type-checks. Il n’existe pas encore de test d’intégration complet de Gazebo et du bouton **Print PCB**.
+La suite contient des tests unitaires `unittest` pour les commandes, les glyphes de **SALAMA / TONGASOA**, les trajectoires, la géométrie, la gestion des traces et le démarrage après spawn. Ils ne démarrent ni Gazebo ni Tk; le test d’intégration complet reste à faire. Le runner colcon configuré pour ce package exécute ces tests `unittest`; il ne découvre pas les wrappers de lint écrits comme fonctions pytest.
 
 ### Nettoyer les résultats de compilation
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 rm -rf build install log
 source /opt/ros/lyrical/setup.bash
 colcon build --symlink-install --packages-up-to drawbot_bringup
@@ -380,19 +374,19 @@ Attendez que Gazebo, RViz, les contrôleurs et les bridges se ferment avant de l
 ### Terminal 1 — simulation et impression manuelle
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 unset LD_LIBRARY_PATH LD_PRELOAD
 source /opt/ros/lyrical/setup.bash
 source install/setup.bash
 ros2 launch drawbot_bringup simulation.launch.py
 ```
 
-Ce terminal reste occupé pendant la simulation. Utilisez le bouton **Print PCB** dans la fenêtre de commande XYZ.
+Ce terminal reste occupé pendant la simulation. Utilisez le bouton **Print** dans la fenêtre de commande XYZ pour écrire **SALAMA** et **TONGASOA** sur le PCB.
 
 ### Terminal 2 — observation ROS facultative
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 unset LD_LIBRARY_PATH LD_PRELOAD
 source /opt/ros/lyrical/setup.bash
 source install/setup.bash
@@ -404,7 +398,7 @@ Ctrl+C dans le terminal 2 arrête uniquement l’observation du topic; la simula
 ### Terminal 3 — commandes de vérification facultatives
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 unset LD_LIBRARY_PATH LD_PRELOAD
 source /opt/ros/lyrical/setup.bash
 source install/setup.bash
@@ -416,7 +410,7 @@ Ces terminaux supplémentaires ne démarrent pas une deuxième simulation.
 ### Terminal 4 — tableau des mesures d’articulations facultatif
 
 ```bash
-cd /home/santatra/Documents/drawing_robot
+cd ~/Documents/drawing_robot
 ./scripts/joint_states.sh
 ```
 
