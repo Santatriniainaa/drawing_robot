@@ -2,6 +2,26 @@
 
 Workspace ROS 2 pour simuler un robot cartésien de dessin PCB : axes $X$, $Y$ et stylo $Z$. Les commandes d’installation et d’utilisation sont détaillées dans [COMMAND.md](COMMAND.md).
 
+## Captures d’écran
+
+### Interface de commande XYZ
+
+Panneau graphique pour commander les axes X/Y et le stylo Z, lancer une impression de démonstration ou annuler une trajectoire.
+
+![Interface de commande XYZ du Drawbot](docs/screenshots/interfacedecommande.png)
+
+### Simulation dans Gazebo
+
+Robot cartésien et plaque PCB dans le monde de simulation Gazebo Sim.
+
+![Robot Drawbot simulé dans Gazebo Sim](docs/screenshots/interfacegraphiquegazebo.png)
+
+### Visualisation dans RViz
+
+Modèle du robot et visualisation des marqueurs de trajectoire dans RViz.
+
+![Robot Drawbot et marqueurs de trajectoire dans RViz](docs/screenshots/interfacegraphiquerviz.png)
+
 ## Plateforme et versions vérifiées
 
 Pile logicielle relevée sur la machine de développement Ubuntu le 15 octobre 2026. Les versions apt peuvent recevoir des mises à jour; cette table décrit la combinaison vérifiée pour ce workspace.
