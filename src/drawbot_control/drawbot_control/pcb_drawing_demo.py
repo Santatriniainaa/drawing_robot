@@ -9,6 +9,7 @@ import time
 import rclpy
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
+from drawbot_control.robot_geometry import PEN_DOWN_POSITION
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
@@ -16,7 +17,7 @@ from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 PEN_UP = 0.0
-PEN_DOWN = -0.00615
+PEN_DOWN = PEN_DOWN_POSITION
 PEN_SETTLE_TIME = 0.3
 XY_CONTROLLER_TOPIC = '/xy_controller/follow_joint_trajectory'
 PEN_COMMAND_TOPIC = '/pen_controller/commands'

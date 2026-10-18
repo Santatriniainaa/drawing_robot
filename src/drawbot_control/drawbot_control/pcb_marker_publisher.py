@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ROS 2 node publishing visual markers for the PCB layout."""
+"""ROS 2 node publishing visualization markers for the PCB layout."""
 
 from __future__ import annotations
 
@@ -57,19 +57,6 @@ class MarkerPublisher(Node):
         array = MarkerArray()
         array.markers = self.markers
         self.pub.publish(array)
-
-    def clear(self):
-        marker = Marker()
-        marker.header.frame_id = 'base_link'
-        marker.ns = 'pcb_traces'
-        marker.id = 0
-        marker.action = Marker.DELETEALL
-        array = MarkerArray()
-        array.markers = [marker]
-        self.pub.publish(array)
-        self.markers = []
-        self.marker_id = 0
-
 
 def main(args=None):
     rclpy.init(args=args)

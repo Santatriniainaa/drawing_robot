@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import random
 import tkinter as tk
-from math import atan2, cos, hypot, pi, sin
+from collections import deque
+from math import hypot
 from threading import Thread
-from tkinter import ttk
 from time import monotonic, time_ns
 from typing import Any
 
@@ -22,6 +22,18 @@ from ros_gz_interfaces.srv import SpawnEntity
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
+from drawbot_control.drawing_paths import PCB_GREETING_PATHS
+from drawbot_control.robot_geometry import (
+    GEOMETRY,
+    PEN_CONTACT as GEOMETRIC_PEN_CONTACT,
+    PEN_DOWN_POSITION,
+)
+from drawbot_control.trace_visualization import (
+    TRACE_SEGMENTS_PER_MODEL,
+    make_trace_batch_sdf,
+    set_trace_factory_pose,
+)
+from drawbot_control.xyz_control_view import XYZControlView
 
 XY_TRAJECTORY_TOPIC = "/xy_controller/follow_joint_trajectory"
 PEN_COMMAND_TOPIC = "/pen_controller/commands"
@@ -31,76 +43,22 @@ PEN_SETTLE_TOLERANCE = 0.0007
 PEN_STEP = 0.0005
 
 
-def make_circle_path(
-    center_x: float, 
-    center_y: float, 
-    radius: float, 
-    segments: int = 16,
-    ) -> tuple[tuple[float, float], ...]:
-    """Return a closed, evenly spaced XY path for one PCB fiducial ring."""
-    return tuple(
-        (
-            center_x + radius * cos(2.0 * pi * index / segments),
-            center_y + radius * sin(2.0 * pi * index / segments),
-        )
-        for index in range(segments + 1)
-    )
-
 class XYZControlGUI:
     """Small desktop control panel for the Gazebo ros2_control joints."""
-    X_MIN = -0.10
-    X_MAX = 0.10
-    Y_MIN = -0.10
-    Y_MAX = 0.10
-    
-    # Keep these geometry values synchronized with drawbot.urdf.xacro.
-    BASE_THICKNESS = 0.020
-    PCB_THICKNESS = 0.001
-    RAIL_HEIGHT = 0.020
-    BEAM_HEIGHT = 0.024
-    GANTRY_RAISE = 0.0195
-    PEN_LENGTH = 0.055
-    PEN_TIP_RADIUS = 0.0015
-    PCB_TOP_LOCAL_Z = BASE_THICKNESS + PCB_THICKNESS
-    PEN_TIP_BOTTOM_AT_ZERO_LOCAL_Z = (
-        BASE_THICKNESS 
-        + RAIL_HEIGHT 
-        + BEAM_HEIGHT 
-        + GANTRY_RAISE
-        - PEN_LENGTH 
-        - PEN_TIP_RADIUS
-    )
-    PEN_CONTACT = PCB_TOP_LOCAL_Z - PEN_TIP_BOTTOM_AT_ZERO_LOCAL_Z
-    PEN_COMPRESSION = 0.00015
+
+    X_MIN, X_MAX = GEOMETRY["limits"]["x"]
+    Y_MIN, Y_MAX = GEOMETRY["limits"]["y"]
+    Z_MIN, Z_MAX = GEOMETRY["limits"]["z"]
+    PEN_CONTACT = GEOMETRIC_PEN_CONTACT
     PEN_UP = 0.0
-    PEN_DOWN = PEN_CONTACT - PEN_COMPRESSION
-    PCB_HALF_WIDTH = 0.125
-    MIN_TRACE_STEP = 0.00035
-    Z_MIN = -0.0065
-    Z_MAX = 0.020
+    PEN_DOWN = PEN_DOWN_POSITION
+    PCB_HALF_WIDTH = min(GEOMETRY["pcb"]["x"], GEOMETRY["pcb"]["y"]) / 2.0
+    MIN_TRACE_STEP = GEOMETRY["drawing"]["min_trace_step"]
+    TRACE_DOT_SIZE = GEOMETRY["drawing"]["trace_width"]
     PRINT_SPEED = 0.025
     TRAVEL_SPEED = 0.10
-    TRACE_WIDTH = 0.0018
-    TRACE_HEIGHT = 0.00035
-    TRACE_CLEARANCE = 0.00002
-    ANCHOR_RADIUS = 0.0025
-    ANCHOR_CENTERS = (
-        (-0.085, -0.085),
-        (-0.085, 0.085),
-        (0.085, -0.085),
-        (0.085, 0.085),
-    )
-    TRACE_COLOR = (1.0, 0.25, 0.0)
-    PRINT_TRACES = (
-        ((-0.075, -0.060), (-0.045, -0.060), (-0.045, -0.020),
-         (0.000, -0.020), (0.000, 0.020), (0.045, 0.020),
-         (0.045, 0.060), (0.075, 0.060)),
-        ((-0.075, 0.060), (-0.060, 0.060), (-0.060, 0.035),
-         (0.060, 0.035), (0.060, -0.035), (0.075, -0.035)),
-        ((-0.075, 0.000), (-0.055, 0.000), (-0.055, -0.045),
-         (0.055, -0.045), (0.055, 0.000), (0.075, 0.000)),
-    )
-
+    MIN_PRINT_SEGMENT_TIME = 0.5
+    MIN_TRAVEL_TIME = 1.0
     def __init__(self, root: tk.Tk, node: Node) -> None:
         self.root = root
         self.node = node
@@ -118,20 +76,19 @@ class XYZControlGUI:
         self.print_abort_message = ""
         self.print_trace_index = 0
         self.print_path: tuple[tuple[float, float], ...] = ()
-        self.print_paths = self.PRINT_TRACES + tuple(
-            make_circle_path(x, y, self.ANCHOR_RADIUS) 
-            for x, y in self.ANCHOR_CENTERS
+        self.print_paths = tuple(
+            stroke for word_strokes in PCB_GREETING_PATHS for stroke in word_strokes
         )
         self.print_wait_token = 0
         self.trace_model_counter = 0
         self.trace_model_prefix = f"pcb_trace_{time_ns()}"
-        self.trace_spawn_segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+        self.trace_spawn_segments: deque[
+            tuple[tuple[float, float], tuple[float, float]]
+        ] = deque()
         self.trace_spawn_in_flight = False
+        self.trace_drain_started = False
         self.live_trace_last_point: tuple[float, float] | None = None
         self.close_deadline = 0.0
-        self.scales: dict[str, tk.Scale] = {}
-        self.value_labels: dict[str, ttk.Label] = {}
-        self.status = tk.StringVar(value="Attente des contrôleurs…")
         self.xy_client = ActionClient(
             node,
             FollowJointTrajectory,
@@ -155,96 +112,30 @@ class XYZControlGUI:
             SpawnEntity,
             TRACE_SPAWN_SERVICE,
         )
-        # Slew the pen at 0.05 m/s to leave margin under the 0.15 m/s limit.
+        # Slew the pen at 0.10 m/s, below the joint's 0.15 m/s limit.
         self.pen_timer = node.create_timer(0.01, self.advance_pen)
 
-        root.title("Drawbot — commande XYZ")
-        root.geometry("700x380")
-        root.minsize(620, 350)
-        root.protocol("WM_DELETE_WINDOW", self.close)
-
-        panel = ttk.Frame(root, padding=16)
-        panel.pack(fill="both", expand=True)
-        ttk.Label(
-            panel,
-            text="Commande manuelle du robot",
-            font=("TkDefaultFont", 14, "bold"),
-        ).pack(anchor="w", pady=(0, 2))
-        ttk.Label(
-            panel,
-            text=(
-                "X/Y : ±0,10 m · Z : levé à 0, "
-                f"contact estimé à {self.PEN_CONTACT * 1000:.1f} mm"
-            ),
-        ).pack(anchor="w", pady=(0, 12))
-
-        axes = ttk.Frame(panel)
-        axes.pack(fill="x", expand=True)
-        self._add_axis(axes, "X", self.X_MIN, self.X_MAX, 0)
-        self._add_axis(axes, "Y", self.Y_MIN, self.Y_MAX, 1)
-        self._add_axis(axes, "Z", self.Z_MIN, self.Z_MAX, 2)
-
-        buttons = ttk.Frame(panel)
-        buttons.pack(fill="x", pady=(8, 8))
-        
-        self.send_button = ttk.Button(buttons, text="Envoyer XYZ", command=self.send_xyz)
-        self.send_button.pack(side="left", padx=(0, 6))
-        self.center_button = ttk.Button(buttons, text="Centre (stylo levé)", command=self.center)
-        self.center_button.pack(side="left", padx=6)
-        self.random_button = ttk.Button(buttons, text="Aléatoire", command=self.random_position)
-        self.random_button.pack(side="left", padx=6)
-        self.print_button = ttk.Button(buttons, text="Print PCB", command=self.start_print)
-        self.print_button.pack(side="left", padx=6)
-        self.cancel_button = ttk.Button(buttons, text="Annuler XY", command=self.cancel_xy)
-        self.cancel_button.pack(side="right", padx=(6, 0))
-
-        ttk.Label(panel, textvariable=self.status, wraplength=520).pack(anchor="w", pady=(4, 0))
+        self.view = XYZControlView(
+            root,
+            self.PEN_CONTACT,
+            {
+                "send": self.send_xyz,
+                "center": self.center,
+                "random": self.random_position,
+                "print": self.start_print,
+                "cancel": self.cancel_xy,
+            },
+            self.close,
+        )
+        self.scales = self.view.scales
+        self.value_labels = self.view.value_labels
+        self.status = self.view.status
 
         self.root.after(250, self.update_controller_status)
         self.root.after(20, self._monitor_pen_contact)
 
-    def _add_axis(
-        self, 
-        parent: ttk.Frame, 
-        axis: str, 
-        minimum: float, 
-        maximum: float, 
-        row: int,
-    ) -> None:
-        ttk.Label(
-            parent, 
-            text=axis, 
-            width=3, 
-            font=("TkDefaultFont", 11, "bold")
-        ).grid(
-            row=row, 
-            column=0, 
-            sticky="w", 
-            padx=(0, 8), 
-            pady=5
-        )
-        scale = tk.Scale(
-            parent,
-            from_=minimum,
-            to=maximum,
-            resolution=0.001,
-            orient="horizontal",
-            showvalue=False,
-            length=390,
-            command=lambda _value, 
-            name=axis: self.update_value_label(name),
-        )
-        scale.set(self.PEN_UP if axis == "Z" else 0.0)
-        scale.grid(row=row, column=1, sticky="ew", pady=3)
-        label = ttk.Label(parent, text="0.000 m", width=10, anchor="e")
-        label.grid(row=row, column=2, sticky="e", padx=(8, 0))
-        parent.columnconfigure(1, weight=1)
-        self.scales[axis] = scale
-        self.value_labels[axis] = label
-
     def update_value_label(self, axis: str) -> None:
-        value = self.scales[axis].get()
-        self.value_labels[axis].configure(text=f"{value:+.3f} m")
+        self.view.update_value_label(axis)
 
     def _set_status(self, message: str) -> None:
         self.status.set(message)
@@ -254,12 +145,7 @@ class XYZControlGUI:
             self.root.after(0, lambda text=message: self._set_status(text))
 
     def _set_print_controls_enabled(self, enabled: bool) -> None:
-        for button_name in ("send_button", "center_button", "random_button", "print_button"):
-            button = getattr(self, button_name)
-            button.configure(state="normal" if enabled else "disabled")
-        for scale in self.scales.values():
-            scale.configure(state="normal" if enabled else "disabled")
-        self.cancel_button.configure(text="Annuler XY" if enabled else "Annuler impression")
+        self.view.set_controls_enabled(enabled)
 
     def current_target(self) -> tuple[float, float, float]:
         return (
@@ -295,6 +181,11 @@ class XYZControlGUI:
             previous = self.live_trace_last_point
             if previous is None:
                 self.live_trace_last_point = point
+                half_dot = self.TRACE_DOT_SIZE / 2.0
+                self.trace_spawn_segments.append((
+                    (x - half_dot, y),
+                    (x + half_dot, y),
+                ))
             elif (
                 hypot(point[0] - previous[0], point[1] - previous[1])
                 >= self.MIN_TRACE_STEP
@@ -349,7 +240,6 @@ class XYZControlGUI:
         self.print_cancel_requested = False
         self.print_trace_index = 0
         self._set_print_controls_enabled(False)
-        self.cancel_button.configure(text="Annuler impression")
         self._set_status("Impression PCB : préparation du stylo…")
         self._set_print_pen_target(self.PEN_UP)
         self._wait_for_pen(self.PEN_UP, self._move_to_next_trace)
@@ -408,7 +298,7 @@ class XYZControlGUI:
 
         self.print_path = self.print_paths[self.print_trace_index]
         self.status.set(
-            f"Trace {self.print_trace_index + 1}/{len(self.print_paths)} : "
+            f"Trait {self.print_trace_index + 1}/{len(self.print_paths)} : "
             "déplacement stylo levé…"
         )
         self._set_print_pen_target(self.PEN_UP)
@@ -422,7 +312,7 @@ class XYZControlGUI:
         current_x = self.measured_positions.get("joint_x", 0.0)
         current_y = self.measured_positions.get("joint_y", 0.0)
         travel_time = max(
-            1.0,
+            self.MIN_TRAVEL_TIME,
             abs(start_x - current_x) / self.TRAVEL_SPEED,
             abs(start_y - current_y) / self.TRAVEL_SPEED,
         )
@@ -437,7 +327,7 @@ class XYZControlGUI:
             return
         self._set_print_pen_target(self.PEN_DOWN)
         self.status.set(
-            f"Trace {self.print_trace_index + 1}/{len(self.print_paths)} : "
+            f"Trait {self.print_trace_index + 1}/{len(self.print_paths)} : "
             "stylo au contact…"
         )
         self._wait_for_pen(self.PEN_DOWN, self._draw_current_trace)
@@ -456,14 +346,14 @@ class XYZControlGUI:
         previous = self.print_path[0]
         for x, y in self.print_path[1:]:
             elapsed += max(
-                0.5,
+                self.MIN_PRINT_SEGMENT_TIME,
                 hypot(x - previous[0], y - previous[1]) / self.PRINT_SPEED,
             )
             waypoints.append((x, y, elapsed))
             previous = (x, y)
 
         self.status.set(
-            f"Trace {self.print_trace_index + 1}/{len(self.print_paths)} : "
+            f"Trait {self.print_trace_index + 1}/{len(self.print_paths)} : "
             "tracé X/Y en cours…"
         )
         self._send_print_trajectory(waypoints, self._raise_pen_after_trace)
@@ -474,55 +364,28 @@ class XYZControlGUI:
         if not self.trace_spawn_client.service_is_ready():
             return
 
-        start, end = self.trace_spawn_segments.pop(0)
+        batch = [
+            self.trace_spawn_segments.popleft()
+            for _ in range(min(TRACE_SEGMENTS_PER_MODEL, len(self.trace_spawn_segments)))
+        ]
         model_name = f"{self.trace_model_prefix}_{self.trace_model_counter:04d}"
-        sdf = self._make_trace_segment_sdf(start, end, model_name)
+        sdf = make_trace_batch_sdf(
+            batch,
+            model_name,
+        )
         request = SpawnEntity.Request()
         request.entity_factory.name = model_name
         request.entity_factory.sdf = sdf
+        set_trace_factory_pose(
+            request.entity_factory,
+            self.robot_base_x,
+            self.robot_base_y,
+            self.robot_base_z,
+        )
         self.trace_model_counter += 1
         self.trace_spawn_in_flight = True
         future = self.trace_spawn_client.call_async(request)
         future.add_done_callback(self._on_trace_segment_spawned)
-
-    def _make_trace_segment_sdf(
-        self,
-        start: tuple[float, float],
-        end: tuple[float, float],
-        model_name: str,
-    ) -> str:
-        """Create a collision-free colored SDF box lying just above the PCB."""
-        x1, y1 = start
-        x2, y2 = end
-        length = hypot(x2 - x1, y2 - y1)
-        center_x = self.robot_base_x + (x1 + x2) / 2.0
-        center_y = self.robot_base_y + (y1 + y2) / 2.0
-        yaw = atan2(y2 - y1, x2 - x1)
-        red, green, blue = self.TRACE_COLOR
-        pcb_top_world_z = self.robot_base_z + self.PCB_TOP_LOCAL_Z
-        center_z = (
-            pcb_top_world_z + self.TRACE_HEIGHT / 2.0 + self.TRACE_CLEARANCE
-        )
-        return f"""<sdf version='1.9'>
-  <model name='{model_name}'>
-    <static>true</static>
-    <pose>{center_x:.6f} {center_y:.6f} {center_z:.6f} 0 0 {yaw:.9f}</pose>
-    <link name='trace_link'>
-      <visual name='copper_trace'>
-        <geometry>
-            <box>
-                <size>{length:.6f} {self.TRACE_WIDTH:.6f} {self.TRACE_HEIGHT:.6f}</size>
-            </box>
-        </geometry>
-        <material>
-          <ambient>{red:.3f} {green:.3f} {blue:.3f} 1</ambient>
-          <diffuse>{red:.3f} {green:.3f} {blue:.3f} 1</diffuse>
-          <emissive>0.35 0.07 0.005 1</emissive>
-        </material>
-      </visual>
-    </link>
-  </model>
-</sdf>"""
 
     def _on_trace_segment_spawned(self, future: Future) -> None:
         try:
@@ -691,7 +554,6 @@ class XYZControlGUI:
         self.request_pending = False
         self.goal_handle = None
         self._set_print_controls_enabled(True)
-        self.cancel_button.configure(text="Annuler XY")
         self._set_status(message)
 
     def send_pen_up(self) -> None:
@@ -808,19 +670,31 @@ class XYZControlGUI:
             self.root.after(50, self._finish_close_when_safe)
             return
 
+        if not self.trace_drain_started:
+            self.trace_drain_started = True
+            self.close_deadline = monotonic() + 5.0
+        if self.trace_spawn_segments and not self.trace_spawn_in_flight:
+            self._spawn_next_trace_segment()
+        if (
+            (self.trace_spawn_segments or self.trace_spawn_in_flight)
+            and monotonic() < self.close_deadline
+            and rclpy.ok()
+        ):
+            self.root.after(50, self._finish_close_when_safe)
+            return
+
         self.pen_timer.cancel()
         try:
             self.root.destroy()
         except tk.TclError:
             pass
 
-
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
     node = Node("drawbot_xyz_control_gui")
     node.declare_parameter("robot_base_x", 0.0)
     node.declare_parameter("robot_base_y", 0.0)
-    node.declare_parameter("robot_base_z", 0.41)
+    node.declare_parameter("robot_base_z", GEOMETRY["spawn"]["z"])
     executor = SingleThreadedExecutor()
     executor.add_node(node)
 

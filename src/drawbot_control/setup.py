@@ -22,9 +22,9 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'draw_node = drawbot_control.draw_node:main',
-            'marker_publisher = drawbot_control.marker_publisher:main',
-            'xyz_control_gui = drawbot_control.xyz_control_gui:main',
+            'draw_node = drawbot_control.pcb_drawing_demo:main',
+            'marker_publisher = drawbot_control.pcb_marker_publisher:main',
+            'xyz_control_gui = drawbot_control.xyz_control_node:main',
         ],
     },
 )
