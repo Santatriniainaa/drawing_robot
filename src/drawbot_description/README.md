@@ -5,6 +5,7 @@ Description du robot Drawbot : modèle Xacro/URDF, interfaces ros2_control et co
 ## Contenu
 
 - `urdf/drawbot.urdf.xacro` : portique cartésien avec `joint_x`, `joint_y` et `joint_pen`.
+- Les dimensions du robot et les limites articulaires sont chargées depuis `drawbot_control/config/drawbot_geometry.yaml`; évitez de dupliquer ces valeurs dans le Xacro ou les nœuds Python.
 - `launch/display.launch.py` : lance RViz; en mode autonome, lance aussi `robot_state_publisher` et `joint_state_publisher_gui`.
 - `rviz/drawbot.rviz` : configuration d’affichage du robot, TF et marqueurs.
 

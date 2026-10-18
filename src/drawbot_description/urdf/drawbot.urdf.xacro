@@ -1,37 +1,39 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="drawbot">
 
-  <!-- Géométrie (mètres) -->
-  <xacro:property name="base_x" value="0.36"/>
-  <xacro:property name="base_y" value="0.36"/>
-  <xacro:property name="base_z" value="0.020"/>
-  <xacro:property name="pcb_x" value="0.25"/>
-  <xacro:property name="pcb_y" value="0.25"/>
-  <xacro:property name="pcb_z" value="0.001"/>
+  <!-- Shared geometry (meters), also loaded by the Python control package. -->
+  <xacro:property name="geometry" value="${xacro.load_yaml('$(find drawbot_control)/config/drawbot_geometry.yaml')}"/>
+  <xacro:property name="base_x" value="${geometry['base']['x']}"/>
+  <xacro:property name="base_y" value="${geometry['base']['y']}"/>
+  <xacro:property name="base_z" value="${geometry['base']['thickness']}"/>
+  <xacro:property name="pcb_x" value="${geometry['pcb']['x']}"/>
+  <xacro:property name="pcb_y" value="${geometry['pcb']['y']}"/>
+  <xacro:property name="pcb_z" value="${geometry['pcb']['thickness']}"/>
   <!-- Raise the gantry so joint_pen=0 starts 7.5 mm above the PCB. -->
-  <xacro:property name="gantry_raise" value="0.0195"/>
-  <xacro:property name="support_size" value="0.020"/>
+  <xacro:property name="gantry_raise" value="${geometry['gantry_raise']}"/>
+  <xacro:property name="support_size" value="${geometry['support']['size']}"/>
 
-  <xacro:property name="rail_x_len" value="0.32"/>
-  <xacro:property name="rail_x_w"   value="0.020"/>
-  <xacro:property name="rail_x_h"   value="0.020"/>
+  <xacro:property name="rail_x_len" value="${geometry['rail_x']['length']}"/>
+  <xacro:property name="rail_x_w"   value="${geometry['rail_x']['width']}"/>
+  <xacro:property name="rail_x_h"   value="${geometry['rail_x']['height']}"/>
 
-  <xacro:property name="beam_y_len" value="0.32"/>
-  <xacro:property name="beam_y_w"   value="0.024"/>
-  <xacro:property name="beam_y_h"   value="0.024"/>
+  <xacro:property name="beam_y_len" value="${geometry['beam_y']['length']}"/>
+  <xacro:property name="beam_y_w"   value="${geometry['beam_y']['width']}"/>
+  <xacro:property name="beam_y_h"   value="${geometry['beam_y']['height']}"/>
 
-  <xacro:property name="carriage_size" value="0.040"/>
-  <xacro:property name="pen_r" value="0.003"/>
-  <xacro:property name="pen_l" value="0.055"/>
+  <xacro:property name="carriage_size" value="${geometry['carriage']['size']}"/>
+  <xacro:property name="pen_r" value="${geometry['pen']['radius']}"/>
+  <xacro:property name="pen_l" value="${geometry['pen']['length']}"/>
 
   <!-- Course -->
-  <xacro:property name="x_min" value="-0.10"/>
-  <xacro:property name="x_max" value="0.10"/>
-  <xacro:property name="y_min" value="-0.10"/>
-  <xacro:property name="y_max" value="0.10"/>
+  <xacro:property name="x_min" value="${geometry['limits']['x'][0]}"/>
+  <xacro:property name="x_max" value="${geometry['limits']['x'][1]}"/>
+  
+  <xacro:property name="y_min" value="${geometry['limits']['y'][0]}"/>
+  <xacro:property name="y_max" value="${geometry['limits']['y'][1]}"/>
   <!-- Tip contact is near -6 mm; allow only 0.5 mm extra compression. -->
-  <xacro:property name="z_min" value="-0.0065"/>
-  <xacro:property name="z_max" value="0.020"/>
+  <xacro:property name="z_min" value="${geometry['limits']['z'][0]}"/>
+  <xacro:property name="z_max" value="${geometry['limits']['z'][1]}"/>
 
   <material name="grey"><color rgba="0.45 0.45 0.47 1"/></material>
   <material name="blue"><color rgba="0.12 0.35 0.85 1"/></material>

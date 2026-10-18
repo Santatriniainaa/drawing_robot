@@ -1,0 +1,43 @@
+# Shared physical geometry in SI units; consumed by Xacro and Python.
+base:
+  x: 0.36
+  y: 0.36
+  thickness: 0.020
+spawn:
+  x: 0.0
+  y: 0.0
+  z: 0.41
+pcb:
+  x: 0.25
+  y: 0.25
+  thickness: 0.001
+support:
+  size: 0.020
+rail_x:
+  length: 0.32
+  width: 0.020
+  height: 0.020
+beam_y:
+  length: 0.32
+  width: 0.024
+  height: 0.024
+gantry_raise: 0.0195
+carriage:
+  size: 0.040
+pen:
+  radius: 0.003
+  length: 0.055
+  tip_radius: 0.0015
+limits:
+  x: [-0.10, 0.10]
+  y: [-0.10, 0.10]
+  z: [-0.0065, 0.020]
+drawing:
+  pen_compression: 0.00015
+  min_trace_step: 0.00035
+  # Deliberately enlarged, non-colliding copper visualization for clear Gazebo rendering.
+  trace_width: 0.0030
+  trace_height: 0.0006
+  trace_clearance: 0.0002
+  trace_color: [1.0, 0.24, 0.0]
+  trace_emissive: [1.0, 0.12, 0.0]
