@@ -195,12 +195,12 @@ Avec la simulation en cours :
 - **Envoyer XYZ** : envoie les valeurs des curseurs au robot.
 - **Centre (stylo levé)** : recentre X/Y avec le stylo relevé.
 - **Aléatoire** : teste une position dans la zone configurée.
-- **Print PCB** : dessine trois pistes de démonstration puis quatre ancres circulaires de repérage de 5 mm, aux positions ±85 mm. Les traces sont ajoutées au monde Gazebo en orange après chaque piste terminée.
+- **Print PCB** : dessine trois pistes de démonstration puis quatre ancres circulaires de repérage de 5 mm, aux positions ±85 mm. Dès que la pointe mesurée touche la plaque verte, les segments orange apparaissent progressivement dans le monde Gazebo pendant le déplacement.
 - **Annuler impression** / **Annuler XY** : annule la trajectoire en cours et demande le relevage du stylo.
 
 La carte fait 250 × 250 × 1 mm. Les coordonnées des pistes et ancres sont exprimées en mètres relativement au centre du PCB. La course X/Y configurée est de −0,10 à +0,10 m; les positions d’ancrage à ±0,085 m restent à l’intérieur de cette zone.
 
-Le stylo est relevé à Z = 0. Le contact géométrique calculé est environ −0,0060 m; le bouton **Print PCB** commande actuellement −0,00615 m pour un très léger appui de simulation. Les visuels orange sont persistants jusqu’à la fermeture du monde, sans collision. Ils simulent des pistes/repères; Gazebo ne dépose pas d’encre réelle.
+Le stylo est relevé à Z = 0. Le contact géométrique calculé est environ −0,0060 m; le bouton **Print PCB** commande actuellement −0,00615 m pour un très léger appui de simulation. Les visuels orange sont créés en temps réel au contact et persistent jusqu’à la fermeture du monde, sans collision. Ils simulent des pistes/repères; Gazebo ne dépose pas d’encre réelle.
 
 > Les tests précédents montrent que le contrôleur peut signaler brièvement une limitation de mouvement XY lorsque sa trajectoire exige une vitesse supérieure à la limite. Le contrôleur limite la commande; vérifiez le suivi visuellement avant de modifier la vitesse.
 
