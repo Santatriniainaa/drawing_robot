@@ -7,10 +7,12 @@ from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitut
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+from drawbot_control.controller_startup import controller_actions_after_spawn
+from drawbot_control.robot_geometry import GEOMETRY
 
-ROBOT_SPAWN_X = 0.0
-ROBOT_SPAWN_Y = 0.0
-ROBOT_SPAWN_Z = 0.41
+ROBOT_SPAWN_X = GEOMETRY['spawn']['x']
+ROBOT_SPAWN_Y = GEOMETRY['spawn']['y']
+ROBOT_SPAWN_Z = GEOMETRY['spawn']['z']
 
 def generate_launch_description():
     pkg_gz_sim = FindPackageShare('ros_gz_sim')
@@ -99,7 +101,10 @@ def generate_launch_description():
     start_controllers = RegisterEventHandler(
         OnProcessExit(
             target_action=spawn_entity,
-            on_exit=[control_launch],
+            on_exit=lambda event, _context: controller_actions_after_spawn(
+                event.returncode,
+                control_launch,
+            ),
         )
     )
 
