@@ -23,13 +23,20 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectoryPoint
 
+XY_TRAJECTORY_TOPIC = "/xy_controller/follow_joint_trajectory"
+PEN_COMMAND_TOPIC = "/pen_controller/commands"
+JOINT_STATES_TOPIC = "/joint_states"
+TRACE_SPAWN_SERVICE = "/world/drawing_world/create"
+PEN_SETTLE_TOLERANCE = 0.0007
+PEN_STEP = 0.0005
+
 
 def make_circle_path(
-    center_x: float,
-    center_y: float,
-    radius: float,
+    center_x: float, 
+    center_y: float, 
+    radius: float, 
     segments: int = 16,
-) -> tuple[tuple[float, float], ...]:
+    ) -> tuple[tuple[float, float], ...]:
     """Return a closed, evenly spaced XY path for one PCB fiducial ring."""
     return tuple(
         (
@@ -39,14 +46,13 @@ def make_circle_path(
         for index in range(segments + 1)
     )
 
-
 class XYZControlGUI:
     """Small desktop control panel for the Gazebo ros2_control joints."""
-
     X_MIN = -0.10
     X_MAX = 0.10
     Y_MIN = -0.10
     Y_MAX = 0.10
+    
     # Keep these geometry values synchronized with drawbot.urdf.xacro.
     BASE_THICKNESS = 0.020
     PCB_THICKNESS = 0.001
@@ -57,13 +63,19 @@ class XYZControlGUI:
     PEN_TIP_RADIUS = 0.0015
     PCB_TOP_LOCAL_Z = BASE_THICKNESS + PCB_THICKNESS
     PEN_TIP_BOTTOM_AT_ZERO_LOCAL_Z = (
-        BASE_THICKNESS + RAIL_HEIGHT + BEAM_HEIGHT + GANTRY_RAISE
-        - PEN_LENGTH - PEN_TIP_RADIUS
+        BASE_THICKNESS 
+        + RAIL_HEIGHT 
+        + BEAM_HEIGHT 
+        + GANTRY_RAISE
+        - PEN_LENGTH 
+        - PEN_TIP_RADIUS
     )
     PEN_CONTACT = PCB_TOP_LOCAL_Z - PEN_TIP_BOTTOM_AT_ZERO_LOCAL_Z
     PEN_COMPRESSION = 0.00015
     PEN_UP = 0.0
     PEN_DOWN = PEN_CONTACT - PEN_COMPRESSION
+    PCB_HALF_WIDTH = 0.125
+    MIN_TRACE_STEP = 0.00035
     Z_MIN = -0.0065
     Z_MAX = 0.020
     PRINT_SPEED = 0.025
@@ -78,7 +90,7 @@ class XYZControlGUI:
         (0.085, -0.085),
         (0.085, 0.085),
     )
-    TRACE_COLOR = (0.98, 0.32, 0.035)
+    TRACE_COLOR = (1.0, 0.25, 0.0)
     PRINT_TRACES = (
         ((-0.075, -0.060), (-0.045, -0.060), (-0.045, -0.020),
          (0.000, -0.020), (0.000, 0.020), (0.045, 0.020),
@@ -107,38 +119,41 @@ class XYZControlGUI:
         self.print_trace_index = 0
         self.print_path: tuple[tuple[float, float], ...] = ()
         self.print_paths = self.PRINT_TRACES + tuple(
-            make_circle_path(x, y, self.ANCHOR_RADIUS)
+            make_circle_path(x, y, self.ANCHOR_RADIUS) 
             for x, y in self.ANCHOR_CENTERS
         )
         self.print_wait_token = 0
         self.trace_model_counter = 0
         self.trace_model_prefix = f"pcb_trace_{time_ns()}"
         self.trace_spawn_segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
-        self.trace_spawn_index = 0
+        self.trace_spawn_in_flight = False
+        self.live_trace_last_point: tuple[float, float] | None = None
         self.close_deadline = 0.0
         self.scales: dict[str, tk.Scale] = {}
         self.value_labels: dict[str, ttk.Label] = {}
         self.status = tk.StringVar(value="Attente des contrôleurs…")
-
         self.xy_client = ActionClient(
             node,
             FollowJointTrajectory,
-            "/xy_controller/follow_joint_trajectory",
+            XY_TRAJECTORY_TOPIC,
         )
+
         self.pen_publisher = node.create_publisher(
             Float64MultiArray,
-            "/pen_controller/commands",
+            PEN_COMMAND_TOPIC,
             10,
         )
+
         self.joint_state_subscription = node.create_subscription(
             JointState,
-            "/joint_states",
+            JOINT_STATES_TOPIC,
             self.on_joint_state,
             10,
         )
+
         self.trace_spawn_client = node.create_client(
             SpawnEntity,
-            "/world/drawing_world/create",
+            TRACE_SPAWN_SERVICE,
         )
         # Slew the pen at 0.05 m/s to leave margin under the 0.15 m/s limit.
         self.pen_timer = node.create_timer(0.01, self.advance_pen)
@@ -171,51 +186,42 @@ class XYZControlGUI:
 
         buttons = ttk.Frame(panel)
         buttons.pack(fill="x", pady=(8, 8))
-        self.send_button = ttk.Button(
-            buttons, text="Envoyer XYZ", command=self.send_xyz
-        )
-        self.send_button.pack(
-            side="left", padx=(0, 6)
-        )
-        self.center_button = ttk.Button(
-            buttons, text="Centre (stylo levé)", command=self.center
-        )
-        self.center_button.pack(
-            side="left", padx=6
-        )
-        self.random_button = ttk.Button(
-            buttons, text="Aléatoire", command=self.random_position
-        )
-        self.random_button.pack(
-            side="left", padx=6
-        )
-        self.print_button = ttk.Button(
-            buttons, text="Print PCB", command=self.start_print
-        )
+        
+        self.send_button = ttk.Button(buttons, text="Envoyer XYZ", command=self.send_xyz)
+        self.send_button.pack(side="left", padx=(0, 6))
+        self.center_button = ttk.Button(buttons, text="Centre (stylo levé)", command=self.center)
+        self.center_button.pack(side="left", padx=6)
+        self.random_button = ttk.Button(buttons, text="Aléatoire", command=self.random_position)
+        self.random_button.pack(side="left", padx=6)
+        self.print_button = ttk.Button(buttons, text="Print PCB", command=self.start_print)
         self.print_button.pack(side="left", padx=6)
-        self.cancel_button = ttk.Button(
-            buttons, text="Annuler XY", command=self.cancel_xy
-        )
-        self.cancel_button.pack(
-            side="right", padx=(6, 0)
-        )
+        self.cancel_button = ttk.Button(buttons, text="Annuler XY", command=self.cancel_xy)
+        self.cancel_button.pack(side="right", padx=(6, 0))
 
-        ttk.Label(panel, textvariable=self.status, wraplength=520).pack(
-            anchor="w", pady=(4, 0)
-        )
+        ttk.Label(panel, textvariable=self.status, wraplength=520).pack(anchor="w", pady=(4, 0))
 
         self.root.after(250, self.update_controller_status)
+        self.root.after(20, self._monitor_pen_contact)
 
     def _add_axis(
-        self,
-        parent: ttk.Frame,
-        axis: str,
-        minimum: float,
-        maximum: float,
+        self, 
+        parent: ttk.Frame, 
+        axis: str, 
+        minimum: float, 
+        maximum: float, 
         row: int,
     ) -> None:
-        ttk.Label(parent, text=axis, width=3, font=("TkDefaultFont", 11, "bold")).grid(
-            row=row, column=0, sticky="w", padx=(0, 8), pady=5
+        ttk.Label(
+            parent, 
+            text=axis, 
+            width=3, 
+            font=("TkDefaultFont", 11, "bold")
+        ).grid(
+            row=row, 
+            column=0, 
+            sticky="w", 
+            padx=(0, 8), 
+            pady=5
         )
         scale = tk.Scale(
             parent,
@@ -225,7 +231,8 @@ class XYZControlGUI:
             orient="horizontal",
             showvalue=False,
             length=390,
-            command=lambda _value, name=axis: self.update_value_label(name),
+            command=lambda _value, 
+            name=axis: self.update_value_label(name),
         )
         scale.set(self.PEN_UP if axis == "Z" else 0.0)
         scale.grid(row=row, column=1, sticky="ew", pady=3)
@@ -239,6 +246,21 @@ class XYZControlGUI:
         value = self.scales[axis].get()
         self.value_labels[axis].configure(text=f"{value:+.3f} m")
 
+    def _set_status(self, message: str) -> None:
+        self.status.set(message)
+
+    def _schedule_status_update(self, message: str) -> None:
+        if not self.closing:
+            self.root.after(0, lambda text=message: self._set_status(text))
+
+    def _set_print_controls_enabled(self, enabled: bool) -> None:
+        for button_name in ("send_button", "center_button", "random_button", "print_button"):
+            button = getattr(self, button_name)
+            button.configure(state="normal" if enabled else "disabled")
+        for scale in self.scales.values():
+            scale.configure(state="normal" if enabled else "disabled")
+        self.cancel_button.configure(text="Annuler XY" if enabled else "Annuler impression")
+
     def current_target(self) -> tuple[float, float, float]:
         return (
             round(self.scales["X"].get(), 3),
@@ -250,12 +272,46 @@ class XYZControlGUI:
         """Keep measured joint positions for pen-settling checks and safe travel."""
         self.measured_positions.update(zip(message.name, message.position))
 
+    def _monitor_pen_contact(self) -> None:
+        """Draw orange Gazebo segments as the measured pen moves on the PCB."""
+        if self.closing:
+            return
+
+        x = self.measured_positions.get("joint_x")
+        y = self.measured_positions.get("joint_y")
+        pen = self.measured_positions.get("joint_pen")
+        in_contact = False
+        if x is not None and y is not None and pen is not None:
+            in_contact = (
+                pen <= self.PEN_CONTACT
+                and abs(x) <= self.PCB_HALF_WIDTH
+                and abs(y) <= self.PCB_HALF_WIDTH
+            )
+        if not in_contact:
+            self.live_trace_last_point = None
+        else:
+            assert x is not None and y is not None
+            point = (x, y)
+            previous = self.live_trace_last_point
+            if previous is None:
+                self.live_trace_last_point = point
+            elif (
+                hypot(point[0] - previous[0], point[1] - previous[1])
+                >= self.MIN_TRACE_STEP
+            ):
+                self.trace_spawn_segments.append((previous, point))
+                self.live_trace_last_point = point
+        if self.trace_spawn_segments and not self.trace_spawn_in_flight:
+            self._spawn_next_trace_segment()
+
+        self.root.after(20, self._monitor_pen_contact)
+
     def send_xyz(self) -> None:
         if self.printing or self.request_pending:
-            self.status.set("Attendre la fin de la commande en cours.")
+            self._set_status("Attendre la fin de la commande en cours.")
             return
         if not self.xy_client.server_is_ready():
-            self.status.set("XY indisponible : attendre l’activation des contrôleurs.")
+            self._set_status("XY indisponible : attendre l’activation des contrôleurs.")
             return
 
         x, y, z = self.current_target()
@@ -271,37 +327,36 @@ class XYZControlGUI:
         self.request_pending = True
         future = self.xy_client.send_goal_async(goal)
         future.add_done_callback(self.on_goal_response)
-        self.status.set(f"Commande envoyée : X={x:+.3f}, Y={y:+.3f}, Z={z:+.3f} m")
+        self._set_status(f"Commande envoyée : X={x:+.3f}, Y={y:+.3f}, Z={z:+.3f} m")
 
     def start_print(self) -> None:
         """Trace a demo PCB pattern with pen-up travel between copper paths."""
         if self.printing or self.request_pending:
-            self.status.set("Une commande est déjà en cours.")
+            self._set_status("Une commande est déjà en cours.")
             return
         if not self.xy_client.server_is_ready():
-            self.status.set("XY indisponible : attendre les contrôleurs Gazebo.")
+            self._set_status("XY indisponible : attendre les contrôleurs Gazebo.")
             return
         if not self.trace_spawn_client.service_is_ready():
-            self.status.set("Service Gazebo /world/drawing_world/create indisponible.")
+            self._set_status("Service Gazebo /world/drawing_world/create indisponible.")
             return
         required_joints = {"joint_x", "joint_y", "joint_pen"}
         if not required_joints.issubset(self.measured_positions):
-            self.status.set("Attente des positions X/Y/Z sur /joint_states.")
+            self._set_status("Attente des positions X/Y/Z sur /joint_states.")
             return
 
         self.printing = True
         self.print_cancel_requested = False
         self.print_trace_index = 0
-        self.print_button.configure(state="disabled")
-        self.send_button.configure(state="disabled")
-        self.center_button.configure(state="disabled")
-        self.random_button.configure(state="disabled")
-        for scale in self.scales.values():
-            scale.configure(state="disabled")
+        self._set_print_controls_enabled(False)
         self.cancel_button.configure(text="Annuler impression")
-        self.status.set("Impression PCB : préparation du stylo…")
+        self._set_status("Impression PCB : préparation du stylo…")
         self._set_print_pen_target(self.PEN_UP)
         self._wait_for_pen(self.PEN_UP, self._move_to_next_trace)
+
+    def _cancel_current_goal(self) -> None:
+        if self.goal_handle is not None:
+            self.goal_handle.cancel_goal_async()
 
     def _set_print_pen_target(self, target: float) -> None:
         self.pen_target = target
@@ -323,7 +378,7 @@ class XYZControlGUI:
                 return
 
             measured = self.measured_positions.get("joint_pen")
-            if measured is not None and abs(measured - target) <= 0.0007:
+            if measured is not None and abs(measured - target) <= PEN_SETTLE_TOLERANCE:
                 on_reached()
                 return
             if monotonic() >= deadline:
@@ -372,7 +427,8 @@ class XYZControlGUI:
             abs(start_y - current_y) / self.TRAVEL_SPEED,
         )
         self._send_print_trajectory(
-            [(start_x, start_y, travel_time)], self._lower_pen_for_trace
+            [(start_x, start_y, travel_time)], 
+            self._lower_pen_for_trace
         )
 
     def _lower_pen_for_trace(self) -> None:
@@ -389,7 +445,10 @@ class XYZControlGUI:
     def _draw_current_trace(self) -> None:
         if self.print_cancel_requested:
             self._set_print_pen_target(self.PEN_UP)
-            self._wait_for_pen(self.PEN_UP, self._finish_cancelled_print)
+            self._wait_for_pen(
+                self.PEN_UP, 
+                self._finish_cancelled_print
+            )
             return
 
         waypoints = []
@@ -407,26 +466,22 @@ class XYZControlGUI:
             f"Trace {self.print_trace_index + 1}/{len(self.print_paths)} : "
             "tracé X/Y en cours…"
         )
-        self._send_print_trajectory(waypoints, self._visualize_completed_trace)
-
-    def _visualize_completed_trace(self) -> None:
-        """Spawn persistent Gazebo visuals for a successfully completed path."""
-        self.trace_spawn_segments = list(zip(self.print_path, self.print_path[1:]))
-        self.trace_spawn_index = 0
-        self._spawn_next_trace_segment()
+        self._send_print_trajectory(waypoints, self._raise_pen_after_trace)
 
     def _spawn_next_trace_segment(self) -> None:
-        if self.trace_spawn_index >= len(self.trace_spawn_segments):
-            self._raise_pen_after_trace()
+        if self.trace_spawn_in_flight or not self.trace_spawn_segments:
+            return
+        if not self.trace_spawn_client.service_is_ready():
             return
 
-        start, end = self.trace_spawn_segments[self.trace_spawn_index]
+        start, end = self.trace_spawn_segments.pop(0)
         model_name = f"{self.trace_model_prefix}_{self.trace_model_counter:04d}"
         sdf = self._make_trace_segment_sdf(start, end, model_name)
         request = SpawnEntity.Request()
         request.entity_factory.name = model_name
         request.entity_factory.sdf = sdf
         self.trace_model_counter += 1
+        self.trace_spawn_in_flight = True
         future = self.trace_spawn_client.call_async(request)
         future.add_done_callback(self._on_trace_segment_spawned)
 
@@ -454,11 +509,15 @@ class XYZControlGUI:
     <pose>{center_x:.6f} {center_y:.6f} {center_z:.6f} 0 0 {yaw:.9f}</pose>
     <link name='trace_link'>
       <visual name='copper_trace'>
-        <geometry><box><size>{length:.6f} {self.TRACE_WIDTH:.6f} {self.TRACE_HEIGHT:.6f}</size></box></geometry>
+        <geometry>
+            <box>
+                <size>{length:.6f} {self.TRACE_WIDTH:.6f} {self.TRACE_HEIGHT:.6f}</size>
+            </box>
+        </geometry>
         <material>
           <ambient>{red:.3f} {green:.3f} {blue:.3f} 1</ambient>
           <diffuse>{red:.3f} {green:.3f} {blue:.3f} 1</diffuse>
-          <emissive>0.18 0.045 0.005 1</emissive>
+          <emissive>0.35 0.07 0.005 1</emissive>
         </material>
       </visual>
     </link>
@@ -470,27 +529,35 @@ class XYZControlGUI:
             response = future.result()
             succeeded = response.success
         except Exception as exc:
+            self.trace_spawn_in_flight = False
             self.root.after(
                 0,
-                lambda error=exc: self._abort_print(
+                lambda error=exc: self._handle_trace_spawn_failure(
                     f"Erreur création de la piste dans Gazebo : {error}"
                 ),
             )
             return
 
         if not succeeded:
+            self.trace_spawn_in_flight = False
             self.root.after(
                 0,
-                lambda: self._abort_print(
+                lambda: self._handle_trace_spawn_failure(
                     "Gazebo a refusé la création d’un segment de piste."
                 ),
             )
             return
 
-        if not self.printing or self.print_cancel_requested:
-            return
-        self.trace_spawn_index += 1
+        self.trace_spawn_in_flight = False
         self.root.after(0, self._spawn_next_trace_segment)
+
+    def _handle_trace_spawn_failure(self, message: str) -> None:
+        self.trace_spawn_segments.clear()
+        self.live_trace_last_point = None
+        if self.printing:
+            self._abort_print(message)
+        else:
+            self.status.set(message)
 
     def _raise_pen_after_trace(self) -> None:
         self._set_print_pen_target(self.PEN_UP)
@@ -590,22 +657,22 @@ class XYZControlGUI:
         self.print_cancel_requested = True
         self.print_wait_token += 1
         self._set_print_pen_target(self.PEN_UP)
-        self.status.set("Annulation : levée du stylo…")
+        self._set_status("Annulation : levée du stylo…")
         if self.goal_handle is not None:
-            self.goal_handle.cancel_goal_async()
+            self._cancel_current_goal()
         elif not self.request_pending:
             self._wait_for_pen(self.PEN_UP, self._finish_cancelled_print)
 
     def _abort_print(self, message: str) -> None:
         if not self.printing:
-            self.status.set(message)
+            self._set_status(message)
             return
         self.print_cancel_requested = True
         self.print_abort_message = message
         self.print_wait_token += 1
         self._set_print_pen_target(self.PEN_UP)
         if self.goal_handle is not None:
-            self.goal_handle.cancel_goal_async()
+            self._cancel_current_goal()
         elif not self.request_pending:
             self._wait_for_pen(self.PEN_UP, self._finish_cancelled_print)
 
@@ -623,27 +690,22 @@ class XYZControlGUI:
         self.print_abort_message = ""
         self.request_pending = False
         self.goal_handle = None
-        self.print_button.configure(state="normal")
-        self.send_button.configure(state="normal")
-        self.center_button.configure(state="normal")
-        self.random_button.configure(state="normal")
-        for scale in self.scales.values():
-            scale.configure(state="normal")
+        self._set_print_controls_enabled(True)
         self.cancel_button.configure(text="Annuler XY")
-        self.status.set(message)
+        self._set_status(message)
 
     def send_pen_up(self) -> None:
         self.scales["Z"].set(self.PEN_UP)
         self.update_value_label("Z")
         self.pen_target = self.PEN_UP
-        self.status.set("Stylo levé; la position X/Y n’a pas changé.")
+        self._set_status("Stylo levé; la position X/Y n’a pas changé.")
 
     def advance_pen(self) -> None:
         """Move the pen command smoothly within its configured velocity limit."""
         difference = self.pen_target - self.pen_position
         if abs(difference) < 1e-9:
             return
-        step = max(-0.0005, min(0.0005, difference))
+        step = max(-PEN_STEP, min(PEN_STEP, difference))
         self.pen_position = round(self.pen_position + step, 6)
         self.pen_publisher.publish(
             Float64MultiArray(data=[self.pen_position])
@@ -676,9 +738,9 @@ class XYZControlGUI:
         if self.goal_handle is None:
             self.status.set("Aucune trajectoire XY active à annuler.")
             return
-        self.goal_handle.cancel_goal_async()
+        self._cancel_current_goal()
         self.goal_handle = None
-        self.status.set("Annulation de la trajectoire XY demandée.")
+        self._set_status("Annulation de la trajectoire XY demandée.")
 
     def on_goal_response(self, future: Future) -> None:
         try:
@@ -686,17 +748,12 @@ class XYZControlGUI:
         except Exception as exc:  # Report ROS action errors in the GUI.
             message = f"Erreur XY : {exc}"
             self.request_pending = False
-            if not self.closing:
-                self.root.after(0, lambda text=message: self.status.set(text))
+            self._schedule_status_update(message)
             return
 
         if not goal_handle.accepted:
             self.request_pending = False
-            if not self.closing:
-                self.root.after(
-                    0,
-                    lambda: self.status.set("Le contrôleur XY a refusé la commande."),
-                )
+            self._schedule_status_update("Le contrôleur XY a refusé la commande.")
             return
 
         self.goal_handle = goal_handle
@@ -711,17 +768,16 @@ class XYZControlGUI:
             message = f"Erreur résultat XY : {exc}"
         self.goal_handle = None
         self.request_pending = False
-        if not self.closing:
-            self.root.after(0, lambda text=message: self.status.set(text))
+        self._schedule_status_update(message)
 
     def update_controller_status(self) -> None:
         if self.closing:
             return
         if not self.xy_client.server_is_ready() and not self.request_pending:
-            self.status.set("Attente du contrôleur XY… lance la simulation Gazebo.")
+            self._set_status("Attente du contrôleur XY… lance la simulation Gazebo.")
         elif self.xy_client.server_is_ready() and not self.request_pending:
             if self.status.get().startswith("Attente"):
-                self.status.set("Contrôleur XY prêt. Choisir X/Y/Z puis envoyer la commande.")
+                self._set_status("Contrôleur XY prêt. Choisir X/Y/Z puis envoyer la commande.")
         self.root.after(750, self.update_controller_status)
 
     def close(self) -> None:
@@ -739,14 +795,14 @@ class XYZControlGUI:
         # directly here would step ~6 mm at once and make gz_ros_control clip it.
         self.pen_target = self.PEN_UP
         self.close_deadline = monotonic() + 2.0
-        self.status.set("Fermeture : relevage progressif du stylo…")
+        self._set_status("Fermeture : relevage progressif du stylo…")
         self.root.after(50, self._finish_close_when_safe)
 
     def _finish_close_when_safe(self) -> None:
         measured_pen = self.measured_positions.get("joint_pen")
         pen_is_up = (
             measured_pen is not None
-            and abs(measured_pen - self.PEN_UP) <= 0.0007
+            and abs(measured_pen - self.PEN_UP) <= PEN_SETTLE_TOLERANCE
         )
         if not pen_is_up and monotonic() < self.close_deadline and rclpy.ok():
             self.root.after(50, self._finish_close_when_safe)
