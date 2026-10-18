@@ -11,6 +11,7 @@
 
   <depend>ros_gz_sim</depend>
   <depend>ros_gz_bridge</depend>
+  <depend>ros_gz_interfaces</depend>
   <depend>drawbot_description</depend>
   
   <exec_depend>drawbot_control</exec_depend>
